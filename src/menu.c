@@ -2529,9 +2529,12 @@ static void draw_hudopt(const menu_state *m, int clock, int bars, float screen_w
 /* ---- the volume mixer (MENU_VOLUME, from the OPTION screen's VOLUME key): overall, the car's sounds (engine, turbo, tyres, wall, crashes),
  * the music and the effects (the menus'); each in tenths. Up and down the rows, left and right the level (a tap on the bar sets it), back
  * leaves. ---- */
-static const char *const VOL_NAME[4] = { "OVERALL", "CAR SOUNDS", "MUSIC", "SOUND EFFECTS" };
-static const char *const VOL_NOTE[4] = { "MASTER AUDIO LEVEL", "ENGINE, TURBO, TIRES, CRASHES, ETC",
-                                         "MUSIC PLAYED IN BOTH THE MENUS AND RACES", "INTERACTIVE SOUNDS PLAYED IN MENUS" };
+#define VOL_ROWS 6
+static const char *const VOL_NAME[VOL_ROWS] = { "OVERALL", "CAR SOUNDS", "MUSIC", "SOUND EFFECTS", "ENGINE", "TURBO" };
+static const char *const VOL_NOTE[VOL_ROWS] = { "MASTER AUDIO LEVEL", "ENGINE, TURBO, TIRES, CRASHES, ETC",
+                                                "MUSIC PLAYED IN BOTH THE MENUS AND RACES", "INTERACTIVE SOUNDS PLAYED IN MENUS",
+                                                "ENGINE AND EXHAUST LEVEL (100% = ARCADE)",
+                                                "TURBO WHINE LEVEL (100% = ARCADE)" };
 #define VOL_Y0 118.0f /* (640 x 480) */
 #define VOL_DY 44.0f
 #define VOL_BAR_X 250.0f
@@ -2563,14 +2566,14 @@ static void volume_step(menu_state *m, const menu_in *in) {
     option_enter(m);
     return;
   }
-  if (in->select >= 0 && in->select < 4) m->vol_row = in->select;
+  if (in->select >= 0 && in->select < VOL_ROWS) m->vol_row = in->select;
   if (in->tab >= 0) { /* a level chosen on the bar (0..10) */
     volume_set(m, m->vol_row, in->tab);
     return;
   }
   if (in->dy) {
     int r = m->vol_row + in->dy;
-    if (r >= 0 && r < 4) snd_menu(SND_CURSOR), m->vol_row = r;
+    if (r >= 0 && r < VOL_ROWS) snd_menu(SND_CURSOR), m->vol_row = r;
     return;
   }
   if (in->dx) volume_set(m, m->vol_row, m->vol[m->vol_row] + in->dx);
@@ -2584,7 +2587,7 @@ static void draw_volume(const menu_state *m, int clock, int bars, float screen_w
   int tb = draw_title_bar(bars, 1);
   hud_ui_begin(screen_w, screen_h);
   if (!tb) hud_ui_text("VOLUME", 24.0f * k, 40.0f * k, 4.0f, 1, 1, 1, 1);
-  for (int r = 0; r < 4; ++r) {
+  for (int r = 0; r < VOL_ROWS; ++r) {
     float y = VOL_Y0 + VOL_DY * (float)r;
     int row_on = r == m->vol_row;
     hud_ui_rect(0, (y - 20.0f) * k, 640.0f * k, 40.0f * k, 0, 0, 0, r & 1 ? 0.25f : 0.38f);
@@ -2599,7 +2602,7 @@ static void draw_volume(const menu_state *m, int clock, int bars, float screen_w
       hud_ui_rect(x * k, (y - 12.0f) * k, (VOL_CELL - 4.0f) * k, 24.0f * k, lit ? 1.0f : 0.0f, lit ? 0.42f : 0.0f, lit ? 0.05f : 0.0f, lit ? 0.95f : 0.4f);
     }
     char s[8];
-    snprintf(s, sizeof s, "%d%%", m->vol[r] * 10);
+    snprintf(s, sizeof s, "%d%%", m->vol[r] * (r >= 4 ? 20 : 10));
     hud_ui_text(s, (VOL_BAR_X + VOL_CELL * 10.0f + 12.0f) * k, (y - 7.0f) * k, 2.6f, 1, 1, 1, 1);
   }
   hud_ui_text(VOL_NOTE[m->vol_row], 20.0f * k, 380.0f * k, 1.7f, 0.85f, 0.85f, 0.85f, 1);
@@ -7039,8 +7042,9 @@ void menu_init(menu_state *m) {
   m->gyro = 0, m->gyro_sens = 5, m->over_on = 1, m->sharp_on = 0, m->ao_on = 0, m->bm_on = 1, m->readout_on = 0, m->fps_on = 0, m->phys_on = 0, m->filter_on = 1, m->filter_smooth = 10, m->filter_counter = 5, m->btn_steer = 10;
   for (int g = 0; g < 3; ++g) m->key_k[g] = 100, m->key_dx[g] = m->key_dy[g] = 0;
   m->poem = -1;
-  for (int i = 0; i < 4; ++i) m->vol[i] = 10; /* (the volume mixer, full, but the overall level at half) */
+  for (int i = 0; i < 6; ++i) m->vol[i] = 10; /* (the volume mixer, full, but the overall level at half) */
   m->vol[0] = 5;
+  m->vol[4] = m->vol[5] = 5; /* (engine and turbo balance: 5 = the arcade's, 100%) */
   m->ten_beep = 1;
   m->rum[0] = 8, m->rum[1] = 10, m->rum[2] = 10, m->rum[3] = 5;
   m->mip = 2;
@@ -10498,7 +10502,7 @@ static int menu_pointer(const menu_state *m, menu_in *in) {
   }
   if (m->screen == MENU_VOLUME) { /* a row, and a level on its bar */
     int row = (int)floorf((y - (VOL_Y0 - 20.0f)) / VOL_DY);
-    if (row < 0 || row >= 4) return 1;
+    if (row < 0 || row >= VOL_ROWS) return 1;
     in->select = row;
     if (x >= VOL_BAR_X - 24.0f && x < VOL_BAR_X + VOL_CELL * 10.0f + 4.0f) {
       int v = x < VOL_BAR_X ? 0 : (int)floorf((x - VOL_BAR_X) / VOL_CELL) + 1;

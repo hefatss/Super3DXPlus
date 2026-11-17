@@ -234,6 +234,12 @@ static float loop_pitch(float off) {
   return (f < 0 ? 0 : f > 179999.0f ? 179999.0f : f) / 22050.0f;
 }
 
+static volatile float bal_engine = 1.0f, bal_turbo = 1.0f;
+void snd_set_balance(float engine, float turbo) {
+  bal_engine = engine < 0 ? 0 : engine > 2 ? 2 : engine;
+  bal_turbo = turbo < 0 ? 0 : turbo > 2 ? 2 : turbo;
+}
+
 void snd_update(car_state *car, const car_input *in, float dt) {
   /* throttle state and gear changes drive the muffler level like the arcade */
   int on = in->throttle > 0.1f;
@@ -259,9 +265,9 @@ void snd_update(car_state *car, const car_input *in, float dt) {
   E.rpm += (car->rpm - E.rpm) * fminf(1.0f, dt * 20.0f);
   float accel = E.accel / 5000.0f;
   for (int i = 0; i < 4; ++i) {
-    LOOPS[S_ENG0 + i].vol = 0.30f * band_gain(&engine_set->engine_bands[i], E.rpm) * (0.55f + 0.45f * accel);
+    LOOPS[S_ENG0 + i].vol = bal_engine * 0.30f * band_gain(&engine_set->engine_bands[i], E.rpm) * (0.55f + 0.45f * accel);
     LOOPS[S_ENG0 + i].pitch = band_pitch(&engine_set->engine_bands[i], E.rpm);
-    LOOPS[S_MUF0 + i].vol = 0.34f * band_gain(&engine_set->muffler_bands[i], E.rpm) * accel;
+    LOOPS[S_MUF0 + i].vol = bal_engine * 0.34f * band_gain(&engine_set->muffler_bands[i], E.rpm) * accel;
     LOOPS[S_MUF0 + i].pitch = band_pitch(&engine_set->muffler_bands[i], E.rpm);
   }
 
@@ -269,7 +275,10 @@ void snd_update(car_state *car, const car_input *in, float dt) {
    * the blow-off valve once it is not playing, the backfire (backfire1, 2 by turns) and the
    * gyap as they come (the valve's sample by the car: snd_set_car; the R32's) */
   const car_se *se = &car->se;
-  LOOPS[S_TURBIN].vol = se->turbo ? 0.73f * se->turbin_vol : 0.0f;
+  /* (the turbine's level against the engine: measured on a recording of the arcade's own Evo IX, fully tuned, at full
+   * boost, its whine (5 to 6.5 kHz) sat 19 dB under the engine's 80 to 1500 Hz; with 0.73 here it sat 9 to 11 dB under:
+   * a jet over the engine. 0.25 gives the arcade's balance) */
+  LOOPS[S_TURBIN].vol = se->turbo ? bal_turbo * 0.25f * se->turbin_vol : 0.0f;
   LOOPS[S_TURBIN].pitch = loop_pitch(se->turbin_hz);
   LOOPS[S_AIR].vol = 0.73f * se->air_vol;
   LOOPS[S_AIR].pitch = loop_pitch(se->air_hz);

@@ -45,6 +45,8 @@ void snd_quiet(void);
 void snd_mix(short *out, int frames);
 /* The levels, 0..1: overall, the car's (engine, turbo, tyres, wall, crashes) and the front end's effects (the music is app_bgm_level's). */
 void snd_set_volume(float master, float car, float sfx);
+/* The engine and exhaust loops' level, and the turbine's, each as a factor of the arcade's (1.0), 0..2. */
+void snd_set_balance(float engine, float turbo);
 /* The car's sounds (engine, tyres, wall, crashes) off or on, ramped: the 10-in-a-row's transitions. */
 void snd_car_mute(int on);
 

@@ -36,6 +36,8 @@ What Super3DX+ adds or changes compared with [Re3DX+](NOTICE.md). Longer explana
 - Fixed a solid white wall at the exit of the C1 tunnels (about 10.8 km into C1 inward): the data build dropped the alpha of the tunnel mouths' faint white light mask (nondxt_sk_nk_lighteff01, alpha 17 at most) as if it were a sky dome, so it drew opaque. Rebuild the Tokyo packs (python tools/pipeline.py convert <arcade data> --only tokyo-day) to get the fix
 - The whole game can be built on an Android device with no PC (data and app, in Termux): `docs/ANDROID_ON_DEVICE.md`. `build_apk.py` uses Termux's own tools there; the converters find Termux's font packages; the Khronos EGL headers are bundled
 - Windows: a racing wheel on its maker's driver (a Fanatec) says "forces not available" and its axes and buttons cannot be bound: SDL's RawInput and Windows.Gaming.Input drivers took it first and have no forces. The wheel now comes through DirectInput; the reason SDL gives for a refused force device is shown in the settings (issue 2)
+- The turbo's whine was far too loud against the engine ("a jet engine", issue 6): measured on a recording of the arcade's own tuned Evo IX it sits about 19 dB under the engine, here it sat 9 to 11 dB under. Its level is now the arcade's; the whine's pitch was already right
+- Volume mixer: ENGINE and TURBO rows (0 to 200%, 100% = the arcade's balance) to set the engine against the turbo's whine
 - Exhaust flames follow the tuned exhaust's pipes (the Savanna RX-7's single tuned pipe, and other cars)
 - Arcade-style race HUD alongside the touch HUD, with a debug options menu
 - Texture sharpness and graphics options (HD textures, wet road, paint reflections, anti-aliasing)

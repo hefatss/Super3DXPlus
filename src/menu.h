@@ -201,7 +201,7 @@ typedef struct {
   int phys_on; /* the physics panel (hud.c draw_phys), the HUD options' fifth row; F4 flips it */
   int filter_on, filter_smooth, filter_counter, btn_steer; /* (the two in half steps, 0..20) */ /* the steering filter (car.h car_set_filter): off = direct, the AXES list's last row and the race's tuning panel (F5) set them */
   /* the volume mixer (MENU_VOLUME, OPTION > VOLUME): overall, the car's, the music's and the effects', each 0..10 (tenths); vol_row the row on */
-  int vol[4], vol_row;
+  int vol[6], vol_row; /* (rows 4, 5: the engine and the turbine against each other, 5 = as the arcade, 0..10 = 0..200%) */
   /* and on Android (hq_rows, set by the app with render_hq on), the GRAPHICS rows in two
    * columns with its own: the AI-upscaled ASTC maps, the bloom, the screen-space ambient
    * occlusion, the wet road, the paint's reflection and the anti-aliasing (4x 1, 2x 0, from
