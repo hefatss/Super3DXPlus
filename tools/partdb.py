@@ -40,6 +40,10 @@ for m in cars["makers"]:
     for car in m["cars"]:
         cols = car["colors"] if isinstance(car["colors"], list) else [car["colors"]]
         model_of.setdefault(car["folder"], cols[0]["model"])
+        # a colour can belong to another trim's model (the Evos' white is the RS, the GC8's yellow and white the RA...): its own folder and
+        # model id. The arcade asks IsTuned for the model the colour picked, so those packs get the same parts (they were left at "never")
+        for c in cols:
+            model_of.setdefault(c.get("folder", car["folder"]), c["model"])
 ptr = e.alloc(16)
 
 
