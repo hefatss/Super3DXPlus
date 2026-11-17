@@ -117,7 +117,9 @@ def main():
 
     def meshes(path):
         f, ms = real_meshes(path)
-        if os.path.relpath(path, cdir) in runlights:  # in its own frame: placed by its sequence
+        # (the names in runlights have forward slashes; on Windows relpath gives backslashes, and no run light was ever found: its texture
+        # was left out, so the glow drew as an offset opaque white box, issue 8)
+        if os.path.relpath(path, cdir).replace(os.sep, "/") in runlights:  # in its own frame: placed by its sequence
             # its texture is the igInterpretedShader's DiffuseTexture, out of scene.meshes' sight
             attr = f.of_type("igTextureAttr")
             for m in ms:
