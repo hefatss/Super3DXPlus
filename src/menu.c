@@ -481,6 +481,8 @@ static void selmenu_enter(menu_state *m, int kind, int sel);
 static void tg_select_open(menu_state *m);
 static void cardset_open(menu_state *m);
 static void ccolor_open(menu_state *m);
+static int tg_no_bodyparts(const menu_state *m);
+static void tg_select_open(menu_state *m);
 static void main_menu_enter(menu_state *m);
 static void selmenu_decide(menu_state *m);
 
@@ -4453,7 +4455,15 @@ static void selmenu_decide(menu_state *m) {
       m->trans_edit = 1;
       selmenu_enter(m, SELMENU_TRANS, m->manual ? 1 : 0);
     } else if (m->sel == 1) {
-      selmenu_enter(m, SELMENU_CUSTOM, 0);
+      if (tg_no_bodyparts(m)) { /* the R35 has no special colours: CUSTOMIZE goes straight to its dress-up (wheels, neon) */
+        m->carmenu = 1;
+        m->dress_free = 1;
+        m->dress_kind = -1;
+        m->tg.maker = 3;
+        tg_select_open(m);
+      } else {
+        selmenu_enter(m, SELMENU_CUSTOM, 0);
+      }
     } else if (m->sel == 2) {
       m->carmenu = 1;
       cardset_open(m);
@@ -8191,7 +8201,7 @@ static void tg_free_leave(menu_state *m) {
   m->dress_free = 0;
   if (m->carmenu) { /* (opened from the Car / Settings discs) */
     m->carmenu = 0;
-    selmenu_enter(m, SELMENU_CUSTOM, 0);
+    selmenu_enter(m, tg_no_bodyparts(m) ? SELMENU_CAR : SELMENU_CUSTOM, tg_no_bodyparts(m) ? 1 : 0); /* (the R35's customize has only the dress-up: back to the discs) */
     return;
   }
   card_enter(m, m->card_back);
