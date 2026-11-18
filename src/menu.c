@@ -5744,6 +5744,11 @@ static int draw_pre_story(const menu_state *m, float fade) {
     num[nd++] = (anm_swap){ anm_sprite(k < 5 ? T_ST_DIGIT + k : T_ST_WA), k < len && k < 5 ? anm_sprite(STORYPRE_DIGIT[text[k] - '0']) : -1 };
   for (int k = 0; k < n; ++k) num[nd++] = (anm_swap){ sw[k].from, -1 };
   anm_draw_ex(ID.pre_st, 0, fade, STORY_NUMBER_DX, 0, num, nd);
+  if (s->episode > 100) { /* (a later loop's chapter: the wins so far at the top right, "Now at 100 wins") */
+    char w[32];
+    snprintf(w, sizeof w, "Now at %d wins", s->episode - 1);
+    ex_text(2, w, 620.0f - ex_width(2, w), 14.0f, fade);
+  }
   return 1;
 }
 

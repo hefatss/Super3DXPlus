@@ -1409,7 +1409,7 @@ static void draw_vs_last(const car_state *car, int story) {
  * them (the newer builds show them; the animation is the last stretch's own digits with the unit swapped in: the UV cells 121.. the digit, 132 km;
   * its word: the picture cons_p_finish_nokori, 残り, where the English build has cons_p_last_remaining). It plays its one-digit block (frames 240 to 299, the digit's colour
  * pulse) over two fades in and out, 54 ticks each, with a glint (approach6) as it comes, by the sim's 60 Hz ticks (the reference video's 5 km and 3 km). ---- */
-enum { UV_NOKORI_KM = 132, REMAIN_PULSE = 54, REMAIN_KM_DX = 18, REMAIN_WORD_DX = -8, REMAIN_WORD_DY = -4 };
+enum { UV_NOKORI_KM = 132, REMAIN_PULSE = 54, REMAIN_KM_DX = 3, REMAIN_WORD_DX = 14, REMAIN_WORD_DY = -4 };
 static long remain_t0 = -1;
 static int remain_km;
 static float remain_prev = -1.0f;
@@ -1450,9 +1450,10 @@ static void draw_remain_call(const car_state *car) {
   float d0[4], wa;
   const int word = anm_sprite(PIC_cons_p_last_remaining);
   if (anm_sprite_rect_at(anim, frame, anm_sprite(T_LAST_D0), 0, d0, &wa)) { /* (small, on the digit's lower left, its end under the digit's start) */
-    float x = d0[0] - anm_sprite_width(word) + REMAIN_WORD_DX, y = d0[3] - anm_sprite_height(word) + REMAIN_WORD_DY;
+    const float k = 0.8f; /* (the reference's word is small beside the digit) */
+    float x = d0[0] - anm_sprite_width(word) * k + REMAIN_WORD_DX, y = d0[3] - anm_sprite_height(word) * k + REMAIN_WORD_DY;
     if (getenv("MT3DX_LOG")) fprintf(stderr, "callout: digit %.0f %.0f %.0f %.0f word %.0fx%.0f at %.0f %.0f\n", d0[0], d0[1], d0[2], d0[3], anm_sprite_width(word), anm_sprite_height(word), x, y);
-    anm_draw_sprite(word, x, y, alpha);
+    { const float xf[6] = { x, y, k, 0, 0, k }; anm_draw_sprite_xf(word, xf, alpha); }
     float km[4];
     if (anm_sprite_rect_at(anim, frame, anm_sprite(T_LAST_M), 0, km, &wa)) anm_draw_sprite(uv(UV_NOKORI_KM), km[0] + REMAIN_KM_DX, km[1], alpha); /* (the unit by hand too, further off the digit) */
   }
