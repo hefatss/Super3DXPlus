@@ -2628,8 +2628,9 @@ static void draw_volume(const menu_state *m, int clock, int bars, float screen_w
 #define BIND_Y_TAB 90.0f
 /* the lists: the menus' and the race's keys, the analog axes (BA_*), and a steering wheel's force feedback (ffb.h; no bindings, its own rows) */
 #define BIND_FFB (BIND_CONTEXTS + 1)
-#define BIND_TABS (BIND_CONTEXTS + 2)
-static const char *const BIND_TAB[BIND_TABS] = { "MENUS", "RACE", "AXES", "WHEEL" };
+#define BIND_GEARS (BIND_CONTEXTS + 2) /* the shifts: shift up and down, and the six positions of an H shifter (race actions, their own list) */
+#define BIND_TABS (BIND_CONTEXTS + 3)
+static const char *const BIND_TAB[BIND_TABS] = { "MENUS", "RACE", "AXES", "WHEEL", "GEARS" };
 /* the wheel list's rows: the device, the two switches, the four strengths (tenths), the test; the settings' ids, and the names */
 enum { FR_DEVICE, FR_ON, FR_INVERT, FR_OVERALL, FR_STEER, FR_CENTER, FR_DAMP, FR_ROAD, FR_CURVE, FR_MIN, FR_TEST, FR_COUNT };
 static const signed char FR_ID[FR_COUNT] = { FFB_DEVICE, FFB_ON, FFB_INVERT, FFB_OVERALL, FFB_STEER, FFB_CENTER, FFB_DAMP, FFB_ROAD, FFB_CURVE, FFB_MIN, -1 };
@@ -2650,9 +2651,26 @@ static const char *const FR_NOTE[FR_COUNT] = {
 #define FR_CELL_W 330.0f /* the value cell's width (it starts at the axes list's first cell) */
 /* the RACE list has one row that is no action, under STEER LEFT / RIGHT: BUTTON STEERING SPEED (RS_ROW); the rows past it are the actions one on */
 #define RS_ROW 2
-static int bind_act(int ctx, int row) { return ctx == BIND_RACE && row > RS_ROW ? row - 1 : row; }
+/* the rows of the RACE list (-1: the steering speed) and of the GEARS list, as race actions */
+static const signed char RACE_ROWS[8] = { BR_LEFT, BR_RIGHT, -1, BR_GAS, BR_BRAKE, BR_CAMERA, BR_TRANS, BR_PAUSE };
+static const signed char GEAR_ROWS[8] = { BR_SHIFT_UP, BR_SHIFT_DOWN, BR_GEAR_1, BR_GEAR_2, BR_GEAR_3, BR_GEAR_4, BR_GEAR_5, BR_GEAR_6 };
+static int bind_act(int ctx, int row) { return ctx == BIND_RACE ? RACE_ROWS[row] : ctx == BIND_GEARS ? GEAR_ROWS[row] : row; }
+/* the bindings' context of a list (the GEARS list's actions are the race's) */
+static int rctx(int ctx) { return ctx == BIND_GEARS ? BIND_RACE : ctx; }
+/* the RACE list back to its defaults, the gears kept as they are */
+static void race_defaults_keep_gears(void) {
+  bind_slot keep[8][BIND_SLOTS];
+  for (int g = 0; g < 8; ++g)
+    for (int s = 0; s < BIND_SLOTS; ++s) keep[g][s] = *bind_get(BIND_RACE, GEAR_ROWS[g], s);
+  bind_context_defaults(BIND_RACE);
+  for (int g = 0; g < 8; ++g) {
+    for (int s = 0; s < BIND_SLOTS; ++s) bind_clear(BIND_RACE, GEAR_ROWS[g], s);
+    for (int s = 0; s < BIND_SLOTS; ++s)
+      if (keep[g][s].kind != BIND_NONE) bind_set(BIND_RACE, GEAR_ROWS[g], s, keep[g][s].kind, keep[g][s].code);
+  }
+}
 static int bind_is_speed(int ctx, int row) { return ctx == BIND_RACE && row == RS_ROW; }
-static int bind_rows(int ctx) { return ctx == BIND_FFB ? FR_COUNT : ctx == BIND_CONTEXTS ? BA_COUNT + 3 : ctx == BIND_RACE ? bind_actions(ctx) + 1 : bind_actions(ctx); } /* (the AXES list: the axes, then the steering filter's switch and its two numbers) */
+static int bind_rows(int ctx) { return ctx == BIND_FFB ? FR_COUNT : ctx == BIND_CONTEXTS ? BA_COUNT + 3 : ctx == BIND_RACE || ctx == BIND_GEARS ? 8 : bind_actions(ctx); } /* (the AXES list: the axes, then the steering filter's switch and its two numbers) */
 /* the filter's number of a row of the AXES list past the switch (half steps, 0..20) */
 static int *filter_value(menu_state *m, int row) {
   return row == BA_COUNT + 1 ? &m->filter_smooth : row == BA_COUNT + 2 ? &m->filter_counter : &m->btn_steer; /* (+3: the buttons' steering speed, 1..10, whole steps) */
@@ -2723,7 +2741,8 @@ void menu_bind_capture(menu_state *m, int kind, int code) {
   }
   if (bind_is_speed(ctx, row)) return;
   row = bind_act(ctx, row);
-  if (row >= bind_actions(ctx)) return;
+  ctx = rctx(ctx);
+  if (row < 0 || row >= bind_actions(ctx)) return;
   if (kind == BIND_KEY && code == BK_ESCAPE && m->bind_wait) {
     m->bind_wait = 0;
     bindings_note(m, "");
@@ -3064,7 +3083,9 @@ static void bindings_step(menu_state *m, const menu_in *in) {
     }
     if (m->bind_row >= n) { /* the list's defaults */
       if (m->bind_ctx == BIND_CONTEXTS) bind_axes_defaults();
-      else bind_context_defaults(m->bind_ctx), m->btn_steer = m->bind_ctx == BIND_RACE ? 10 : m->btn_steer;
+      else if (m->bind_ctx == BIND_GEARS) bind_gears_defaults();
+      else if (m->bind_ctx == BIND_RACE) race_defaults_keep_gears(), m->btn_steer = 10;
+      else bind_context_defaults(m->bind_ctx);
       m->garage_changed = 1;
       bindings_note(m, "DEFAULTS BACK");
       snd_menu(SND_SELECT);
@@ -3242,13 +3263,13 @@ static void draw_bindings(const menu_state *m, int clock, int bars, float screen
       continue;
     }
     int ra = bind_act(ctx, r); /* (the action of the row) */
-    hud_ui_text(bind_action_name(ctx, ra), BIND_X_NAME * k, (y + 5.0f) * k, 2.0f, 1, 1, 1, 1);
+    hud_ui_text(bind_action_name(rctx(ctx), ra), BIND_X_NAME * k, (y + 5.0f) * k, 2.0f, 1, 1, 1, 1);
     if (row_on) hud_ui_rect(2.0f * k, y * k, 4.0f * k, (BIND_ROW_DY - 2.0f) * k, 1.0f, 0.42f, 0.05f, 1.0f);
     for (int s = 0; s < BIND_SLOTS; ++s) {
       float x, w;
       bindings_cell(s, &x, &w);
       int on = row_on && s == m->bind_col;
-      const bind_slot *b = bind_get(ctx, ra, s);
+      const bind_slot *b = bind_get(rctx(ctx), ra, s);
       hud_ui_rect(x * k, (y + 1.0f) * k, w * k, (BIND_ROW_DY - 4.0f) * k, on ? 0.35f : 0.0f, on ? 0.15f : 0.0f, 0.0f, on ? 0.85f : 0.4f);
       if (on) { /* the cell: an orange frame (the wait: filled) */
         float a = m->bind_wait ? 0.55f + 0.25f * cosf((float)clock * 0.2f) : 0.0f;
@@ -3265,8 +3286,9 @@ static void draw_bindings(const menu_state *m, int clock, int bars, float screen
     }
   }
   const char *hint = m->bind_wait ? (m->bind_col < BIND_KEYS ? "PRESS A KEY   ESC OR ANY OTHER INPUT CANCELS"
-                                                              : "PRESS A PAD BUTTON, THE STICK OR A TRIGGER   ANY KEY CANCELS")
-                                  : "PRESS VIEW TO SWITCH CATEGORY";
+                                                              : "PRESS A PAD OR WHEEL BUTTON, THE STICK OR A TRIGGER   ANY KEY CANCELS")
+                                  : ctx == BIND_GEARS ? "AN H SHIFTER'S GEAR PUTS THE LEVER IN THAT GEAR AT ONCE; UP AND DOWN STEP FROM THERE"
+                                                      : "PRESS VIEW TO SWITCH CATEGORY";
   hud_ui_text(m->bind_note[0] ? m->bind_note : hint, 20.0f * k, 388.0f * k, 1.7f, m->bind_note[0] ? 1.0f : 0.85f, m->bind_note[0] ? 0.7f : 0.85f,
               m->bind_note[0] ? 0.3f : 0.85f, 1);
   hud_ui_end();

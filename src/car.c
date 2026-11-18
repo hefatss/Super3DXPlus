@@ -1463,6 +1463,7 @@ void car_update(car_state *c, const car_input *in) {
   /* clGameInput for CIO::Drive: wheel, pedals and the shift lever (gear - 1, -1 = neutral).
    * With AT the arcade ignores the lever. */
   if (P.manual) {
+    if (in->gear > 0) P.lever = in->gear - 1 > P.top_lever ? P.top_lever : in->gear - 1;
     if (in->shift_up && P.lever < P.top_lever) P.lever++;
     if (in->shift_down && P.lever > -1) P.lever--;
   }

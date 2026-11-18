@@ -22,7 +22,8 @@ void app_touch(void *id, int phase, float x, float y);
 void app_frame(float dt);
 /* Keys of a keyboard or a pad's buttons, for the race (the menus take touches: the platform moves a cursor and taps). */
 enum { APP_KEY_LEFT, APP_KEY_RIGHT, APP_KEY_ACCEL, APP_KEY_BRAKE, APP_KEY_SHIFT_UP, APP_KEY_SHIFT_DOWN,
-       APP_KEY_CAMERA, APP_KEY_RESET, APP_KEY_TRANS, APP_KEY_PAUSE };
+       APP_KEY_CAMERA, APP_KEY_RESET, APP_KEY_TRANS, APP_KEY_PAUSE,
+       APP_KEY_GEAR_1, APP_KEY_GEAR_2, APP_KEY_GEAR_3, APP_KEY_GEAR_4, APP_KEY_GEAR_5, APP_KEY_GEAR_6 /* an H shifter's positions */ };
 /* down: pressed (1) or let go (0). The one-press keys (shifts, camera, reset, transmission, pause) act on the press. */
 void app_key(int key, int down);
 /* A control of the menus (menu.h's MENU_ACT_*): the steering, the shifter, the gas, the brake, the view button, from a keyboard

@@ -13,15 +13,20 @@ enum { BIND_MENU, BIND_RACE, BIND_CONTEXTS };
 
 /* the menus' actions (in menu.h's MENU_ACT_* order) and the race's */
 enum { BM_LEFT, BM_RIGHT, BM_UP, BM_DOWN, BM_OK, BM_BACK, BM_VIEW, BM_COUNT };
-enum { BR_LEFT, BR_RIGHT, BR_GAS, BR_BRAKE, BR_SHIFT_UP, BR_SHIFT_DOWN, BR_CAMERA, BR_TRANS, BR_PAUSE, BR_COUNT }; /* (the file's numbers keep the removed reset car's place: BR_RESET_FILE) */
+enum { BR_LEFT, BR_RIGHT, BR_GAS, BR_BRAKE, BR_SHIFT_UP, BR_SHIFT_DOWN, BR_CAMERA, BR_TRANS, BR_PAUSE,
+       /* the six positions of an H shifter (the GEARS list): the press puts the lever in that gear at once, beside shift up and down */
+       BR_GEAR_1, BR_GEAR_2, BR_GEAR_3, BR_GEAR_4, BR_GEAR_5, BR_GEAR_6, BR_COUNT }; /* (the file's numbers keep the removed reset car's place: BR_RESET_FILE) */
 #define BR_RESET_FILE 7
 
 /* pad inputs: buttons, the left stick's four directions and the two triggers (as buttons, past a threshold) */
 enum { BP_A, BP_B, BP_X, BP_Y, BP_BACK, BP_START, BP_LSTICK, BP_RSTICK, BP_LB, BP_RB, BP_DUP, BP_DDOWN, BP_DLEFT, BP_DRIGHT,
        BP_STICK_LEFT, BP_STICK_RIGHT, BP_STICK_UP, BP_STICK_DOWN, BP_RT, BP_LT,
-       /* a steering wheel's buttons, as the joystick layer numbers them (the first BP_WHEELS of them) */
-       BP_W0, BP_WHEEL_LAST = BP_W0 + 31, BP_COUNT };
-#define BP_WHEELS 32
+       /* the buttons of the steering wheel and the other game devices (shifters, button boxes, pedals): WHEEL_DEVS devices of BP_PER_DEV
+        * buttons each, the chosen wheel's first (the others in the order SDL lists them) */
+       BP_W0, BP_WHEEL_LAST = BP_W0 + 255, BP_COUNT };
+#define WHEEL_DEVS 4
+#define BP_PER_DEV 64
+#define BP_WHEELS (WHEEL_DEVS * BP_PER_DEV)
 
 /* two keys the binding screen itself takes (SDL's keycodes): leave the capture, clear the slot */
 #define BK_ESCAPE 27
@@ -43,6 +48,8 @@ int bind_set(int ctx, int action, int slot, int kind, int code);
 int bind_clear(int ctx, int action, int slot);
 void bind_defaults(void);
 void bind_context_defaults(int ctx);
+/* the GEARS list: shift up and down as they were by default, the six gears unbound */
+void bind_gears_defaults(void);
 /* the slot's input as the screen shows it ("ENTER", "A", "STICK LEFT"; "--" for none) */
 const char *bind_name(const bind_slot *s);
 /* the platform's name of a keyboard code (SDL_GetKeyName); without one, the code */
@@ -58,9 +65,10 @@ int bind_dirty(void);
  * digital inputs above still work beside them (a pressed key wins over the axis). ---- */
 enum { BA_STEER, BA_GAS, BA_BRAKE, BA_COUNT };
 enum { AXIS_NONE = -1, AXIS_LEFTX, AXIS_LEFTY, AXIS_RIGHTX, AXIS_RIGHTY, AXIS_TRIGL, AXIS_TRIGR,
-       /* a steering wheel's first eight axes (the joystick layer's, -1..1: a pedal rests at one end and goes to the other) */
-       AXIS_W0, AXIS_W7 = AXIS_W0 + 7, AXIS_COUNT };
-#define AXIS_WHEELS 8
+       /* the axes of the wheel and the other game devices, AXIS_PER_DEV each (the joystick layer's, -1..1: a pedal rests at one end and goes to the other) */
+       AXIS_W0, AXIS_W7 = AXIS_W0 + 47, AXIS_COUNT };
+#define AXIS_PER_DEV 12
+#define AXIS_WHEELS (WHEEL_DEVS * AXIS_PER_DEV)
 #define AXIS_PAD 6 /* the game controller's axes (the first of them) */
 typedef struct { int axis, invert, dead, sens; } bind_axis; /* dead: percent of the throw ignored about rest; sens: percent, the value's gain after it (100 as it is) */
 

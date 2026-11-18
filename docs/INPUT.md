@@ -253,3 +253,5 @@ left alone). Each of these is a line with the time in `wheel-diag.txt`, so a rep
 GAME OPTIONS > WINDOW MODE switches between a window and borderless fullscreen; F11 or Alt+Enter does the same at any time. The choice is
 the `window` line of the `option` file, so the next start opens the same way; `--fullscreen` on the command line starts fullscreen whatever
 was saved. The row is not shown on the Raspberry Pi (it always runs fullscreen) or in a CRT run.
+
+**Gears list and other devices.** KEY BINDINGS > GEARS has SHIFT UP, SHIFT DOWN and GEAR 1 to GEAR 6 (an H shifter's positions, bound to any key, pad or wheel button). A gear press puts the lever in that gear at once; shift up and down step from where it is, so both can be bound together. Releasing an H position does nothing (no neutral). Only the manual gearbox uses them. Any game device that is not a game controller (a separate shifter, button box, pedals) is read as well as the wheel chosen for forces: the chosen wheel's inputs are WHEEL BTN n / WHEEL AXIS n, the others DEV2, DEV3, DEV4 (BTN 1-64, AXIS 1-12 each), numbered in the order of the device list.

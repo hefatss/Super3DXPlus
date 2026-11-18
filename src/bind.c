@@ -15,7 +15,7 @@ enum {
 static const char *const MENU_NAMES[BM_COUNT] = { "LEFT", "RIGHT", "UP", "DOWN",
                                                   "OK (GAS)", "BACK (BRAKE)", "VIEW" };
 static const char *const RACE_NAMES[BR_COUNT] = { "STEER LEFT", "STEER RIGHT", "GAS", "BRAKE", "SHIFT UP", "SHIFT DOWN", "CAMERA",
-                                                  "AT / MT", "PAUSE" };
+                                                  "AT / MT", "PAUSE", "GEAR 1", "GEAR 2", "GEAR 3", "GEAR 4", "GEAR 5", "GEAR 6" };
 
 static bind_slot B[BIND_CONTEXTS][BR_COUNT][BIND_SLOTS];
 static const char *(*key_namer)(int code);
@@ -107,6 +107,23 @@ void bind_context_defaults(int ctx) {
   dirty = 1;
 }
 
+/* the GEARS list's own defaults: the shifts as they were, the six gears unbound */
+void bind_gears_defaults(void) {
+  bind_slot keep[BR_COUNT][BIND_SLOTS];
+  memcpy(keep, B[BIND_RACE], sizeof keep);
+  bind_context_defaults(BIND_RACE);
+  static const int GEARS[8] = { BR_SHIFT_UP, BR_SHIFT_DOWN, BR_GEAR_1, BR_GEAR_2, BR_GEAR_3, BR_GEAR_4, BR_GEAR_5, BR_GEAR_6 };
+  bind_slot own[8][BIND_SLOTS];
+  for (int g = 0; g < 8; ++g) memcpy(own[g], B[BIND_RACE][GEARS[g]], sizeof own[g]);
+  memcpy(B[BIND_RACE], keep, sizeof keep);
+  for (int g = 0; g < 8; ++g) {
+    for (int s = 0; s < BIND_SLOTS; ++s) B[BIND_RACE][GEARS[g]][s] = (bind_slot){ BIND_NONE, 0 };
+    for (int s = 0; s < BIND_SLOTS; ++s) /* (an input the defaults give a gear action leaves any other race action it was on) */
+      if (own[g][s].kind != BIND_NONE) bind_set(BIND_RACE, GEARS[g], s, own[g][s].kind, own[g][s].code);
+  }
+  dirty = 1;
+}
+
 void bind_axes_defaults(void) {
   AX[BA_STEER] = (bind_axis){ AXIS_LEFTX, 0, 10, 100 };
   AX[BA_GAS] = (bind_axis){ AXIS_TRIGR, 0, 5, 100 };
@@ -144,8 +161,10 @@ const char *bind_axis_name(int axis) {
   static const char *const N[AXIS_PAD] = { "LEFT STICK X", "LEFT STICK Y", "RIGHT STICK X", "RIGHT STICK Y", "LEFT TRIGGER", "RIGHT TRIGGER" };
   static char w[AXIS_WHEELS][16];
   if (axis >= AXIS_W0 && axis < AXIS_COUNT) {
-    snprintf(w[axis - AXIS_W0], sizeof w[0], "WHEEL AXIS %d", axis - AXIS_W0 + 1);
-    return w[axis - AXIS_W0];
+    const int i = axis - AXIS_W0, dev = i / AXIS_PER_DEV;
+    if (dev == 0) snprintf(w[i], sizeof w[0], "WHEEL AXIS %d", i % AXIS_PER_DEV + 1);
+    else snprintf(w[i], sizeof w[0], "DEV%d AXIS %d", dev + 1, i % AXIS_PER_DEV + 1);
+    return w[i];
   }
   return axis >= 0 && axis < AXIS_PAD ? N[axis] : "--";
 }
@@ -185,7 +204,9 @@ const char *bind_name(const bind_slot *s) {
                                              "D-PAD DOWN", "D-PAD LEFT", "D-PAD RIGHT", "STICK LEFT", "STICK RIGHT", "STICK UP",
                                              "STICK DOWN", "RT", "LT" };
   if (s->code >= BP_W0 && s->code < BP_COUNT) {
-    snprintf(out, 40, "WHEEL BTN %d", s->code - BP_W0 + 1);
+    const int i = s->code - BP_W0, dev = i / BP_PER_DEV;
+    if (dev == 0) snprintf(out, 40, "WHEEL BTN %d", i % BP_PER_DEV + 1);
+    else snprintf(out, 40, "DEV%d BTN %d", dev + 1, i % BP_PER_DEV + 1);
     return out;
   }
   if (s->code >= 0 && s->code < BP_W0) return PAD[s->code];

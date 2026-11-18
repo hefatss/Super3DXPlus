@@ -11,6 +11,7 @@ typedef struct {
   void *left_touch, *right_touch; /* steering buttons */
   void *throttle_touch, *brake_touch;
   int shift_up, shift_down; /* pending presses, consumed by hud_input */
+  int gear_set;             /* an H shifter's last position pressed (1..6), consumed by hud_input */
   int camera_pressed, trans_pressed;
   int pause_pressed; /* the pause button (only it: a tap in the middle paused by mistake) */
   float screen_w, screen_h;

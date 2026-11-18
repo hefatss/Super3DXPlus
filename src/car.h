@@ -11,6 +11,7 @@ typedef struct {
   float throttle; /* 0..1 */
   float brake;    /* 0..1 */
   int shift_up, shift_down; /* edge-triggered requests */
+  int gear;       /* an H shifter's position pressed (1..6, 0 none): the lever goes there at once, before any shift up or down */
   int analog;     /* steer is the iPad's tilt (the gyro's), not the buttons' */
 } car_input;
 

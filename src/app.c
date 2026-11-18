@@ -1789,7 +1789,8 @@ void app_ffb(ffb_out *o) {
 
 /* the race's action of each bindable one (bind.h BR_*) */
 static const signed char RACE_KEY[BR_COUNT] = { APP_KEY_LEFT, APP_KEY_RIGHT, APP_KEY_ACCEL, APP_KEY_BRAKE, APP_KEY_SHIFT_UP,
-                                                APP_KEY_SHIFT_DOWN, APP_KEY_CAMERA, APP_KEY_TRANS, APP_KEY_PAUSE };
+                                                APP_KEY_SHIFT_DOWN, APP_KEY_CAMERA, APP_KEY_TRANS, APP_KEY_PAUSE,
+                                                APP_KEY_GEAR_1, APP_KEY_GEAR_2, APP_KEY_GEAR_3, APP_KEY_GEAR_4, APP_KEY_GEAR_5, APP_KEY_GEAR_6 };
 
 int app_bind_capturing(void) { return menu_bind_capturing(&G.menu); }
 
@@ -1861,6 +1862,9 @@ void app_key(int key, int down) {
   case APP_KEY_CAMERA: G.hud.camera_pressed++; break;
   case APP_KEY_TRANS: G.hud.trans_pressed++; break;
   case APP_KEY_PAUSE: G.hud.pause_pressed++; break;
+  case APP_KEY_GEAR_1: case APP_KEY_GEAR_2: case APP_KEY_GEAR_3: case APP_KEY_GEAR_4: case APP_KEY_GEAR_5: case APP_KEY_GEAR_6:
+    G.hud.gear_set = key - APP_KEY_GEAR_1 + 1; /* (the H shifter: the lever goes to that gear at once) */
+    break;
   }
 }
 
@@ -4966,19 +4970,20 @@ void app_frame(float dt) {
   }
   /* A shift is a press, and on a display faster than 60 Hz (the AYN Thor's 120) a frame in 2 runs no arcade step: the press hud_input took from the
    * keys went with that frame. It waits for the next step instead (not through a pause, which runs none). */
-  static int pend_up, pend_down;
-  if (G.paused) pend_up = pend_down = 0;
+  static int pend_up, pend_down, pend_gear;
+  if (G.paused) pend_up = pend_down = pend_gear = 0;
   pend_up |= in.shift_up, pend_down |= in.shift_down;
-  in.shift_up = pend_up, in.shift_down = pend_down;
+  if (in.gear) pend_gear = in.gear;
+  in.shift_up = pend_up, in.shift_down = pend_down, in.gear = pend_gear;
   for (int i = 0; i < steps; ++i) {
     if (i == steps - 1) G.car_prev = G.car; /* (the state the render interpolates from: a step ago) */
     if (G.ten_white && ++G.ten_white > 1 + TEN_WHITE_HOLD + TEN_WHITE_FADE) G.ten_white = 0;
     car_update(&G.car, &in);
-    pend_up = pend_down = 0;
+    pend_up = pend_down = pend_gear = 0;
     haptic_set_levels(G.menu.rum);
     haptic_step(&G.car, G.car.race.play_state == 2 && G.car.race.countdown <= 0.0f && app_racing());
     ffb_step(&G.car, G.car.race.play_state == 2 && G.car.race.countdown <= 0.0f && app_racing() && !G.paused);
-    in.shift_up = in.shift_down = 0;
+    in.shift_up = in.shift_down = in.gear = 0;
     vs_contact_log();
     /* clCarEffectManager::update's sparks, each car's */
     spark_step(0, G.car.body, &G.car.effect);

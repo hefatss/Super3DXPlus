@@ -240,7 +240,8 @@ void hud_input(hud_state *h, car_input *in) {
   if (h->kb & HUD_KB_BRAKE) in->brake = 1.0f;
   in->shift_up = h->shift_up > 0;
   in->shift_down = h->shift_down > 0;
-  h->shift_up = h->shift_down = 0;
+  in->gear = h->gear_set;
+  h->shift_up = h->shift_down = 0, h->gear_set = 0;
 }
 
 /* ---- drawing ---- */
