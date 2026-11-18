@@ -10755,6 +10755,7 @@ static int menu_pointer(const menu_state *m, menu_in *in) {
 
 static void step(menu_state *m) {
   m->t++;
+  m->clock++;
 #ifdef WMMT_EGL
   static int tg_now;
   if (m->screen == MENU_GAME && !tg_now && getenv("WMMT_TG_NOW")) { /* test: these dress-up wins now */
@@ -11711,8 +11712,7 @@ void menu_draw(const menu_state *m, float screen_w, float screen_h, void (*draw3
     fade = 1.0f;
   }
   /* the backgrounds keep running across screens; the bars slide in when the menus open */
-  static int clock;
-  clock++;
+  const int clock = m->clock; /* (60 Hz steps, not draws: a 120 Hz display ran the backgrounds and glyphs twice as fast) */
   bottom_clock = clock;
   int bars = m->bars ? 188 + m->bars : 0;
   if (m->screen <= MENU_COLOR) {

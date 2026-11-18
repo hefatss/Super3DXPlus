@@ -90,6 +90,7 @@ typedef struct {
 typedef struct {
   int screen;      /* MENU_MOVIE ... MENU_PRE */
   int t;           /* 60 Hz frames since the screen (or its current move) started */
+  int clock;       /* 60 Hz frames since the menus first ran: the backgrounds' and glyphs' own motion (kept across screens) */
   int sel, from;   /* selected item; item a move started from (-1 = idle) */
   /* the course select's strip (clThread_6_2_CourseSelect's spin box): the selected card's
    * place on screen, and the strip's shift in cards before the move (it slides 88 px a card) */
