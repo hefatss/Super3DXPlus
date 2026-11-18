@@ -230,16 +230,27 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback, Se
   private float hatX, hatY;
   private final float[] axes = new float[6];
 
+  /* Android batches a pad's motion events and hands over the latest values with the earlier ones as "history": a D-pad that is a hat (the AYN Thor's)
+   * pressed and let go inside one batch looked like nothing happened, and a shift on it was lost. Every sample is taken in order, the history first. */
+  private static float sample(MotionEvent e, int axis, int h) {
+    return h < 0 ? e.getAxisValue(axis) : e.getHistoricalAxisValue(axis, h);
+  }
+
   @Override public boolean dispatchGenericMotionEvent(MotionEvent e) {
     if (!isPad(e) || e.getActionMasked() != MotionEvent.ACTION_MOVE) return super.dispatchGenericMotionEvent(e);
-    sendAxis(AXIS_LEFTX, e.getAxisValue(MotionEvent.AXIS_X));
-    sendAxis(AXIS_LEFTY, e.getAxisValue(MotionEvent.AXIS_Y));
-    sendAxis(AXIS_RIGHTX, e.getAxisValue(MotionEvent.AXIS_Z));
-    sendAxis(AXIS_RIGHTY, e.getAxisValue(MotionEvent.AXIS_RZ));
-    sendAxis(AXIS_TRIGL, Math.max(e.getAxisValue(MotionEvent.AXIS_LTRIGGER), e.getAxisValue(MotionEvent.AXIS_BRAKE)));
-    sendAxis(AXIS_TRIGR, Math.max(e.getAxisValue(MotionEvent.AXIS_RTRIGGER), e.getAxisValue(MotionEvent.AXIS_GAS)));
+    for (int h = 0; h <= e.getHistorySize(); ++h) padSample(e, h == e.getHistorySize() ? -1 : h);
+    return true;
+  }
+
+  private void padSample(MotionEvent e, int h) {
+    sendAxis(AXIS_LEFTX, sample(e, MotionEvent.AXIS_X, h));
+    sendAxis(AXIS_LEFTY, sample(e, MotionEvent.AXIS_Y, h));
+    sendAxis(AXIS_RIGHTX, sample(e, MotionEvent.AXIS_Z, h));
+    sendAxis(AXIS_RIGHTY, sample(e, MotionEvent.AXIS_RZ, h));
+    sendAxis(AXIS_TRIGL, Math.max(sample(e, MotionEvent.AXIS_LTRIGGER, h), sample(e, MotionEvent.AXIS_BRAKE, h)));
+    sendAxis(AXIS_TRIGR, Math.max(sample(e, MotionEvent.AXIS_RTRIGGER, h), sample(e, MotionEvent.AXIS_GAS, h)));
     /* a d-pad that is a hat */
-    float hx = e.getAxisValue(MotionEvent.AXIS_HAT_X), hy = e.getAxisValue(MotionEvent.AXIS_HAT_Y);
+    float hx = sample(e, MotionEvent.AXIS_HAT_X, h), hy = sample(e, MotionEvent.AXIS_HAT_Y, h);
     if (hx != hatX) {
       if (hatX < 0) nativePadButton(BP_DLEFT, false);
       if (hatX > 0) nativePadButton(BP_DRIGHT, false);
@@ -256,7 +267,6 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback, Se
       hatY = hy;
       usedPad();
     }
-    return true;
   }
 
   private void sendAxis(int axis, float v) {
