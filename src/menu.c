@@ -503,6 +503,7 @@ static const cardb_car *chosen_car(const menu_state *m, int car) { return m->cc_
 
 int menu_cc_unlocked(const menu_state *m, int mk, int sl) {
   int n = CARDB_CARS[mk][sl % MENU_GARAGE_CARS].ncustom;
+  if (has(CARDB_CARS[mk][sl % MENU_GARAGE_CARS].label, "[R35]")) return 0; /* (the R35 has no special colours in the arcade: the colour select only sounds, issue 9) */
   if (m->dress_lv[mk][sl] >= 63) return n;
   int k = m->card_plays[mk][sl] / CC_PLAYS;
   return k < n ? k : n;
