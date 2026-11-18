@@ -36,7 +36,7 @@ typedef struct {
   /* held keys of a keyboard or pad (HUD_KB_*), the same as the touch keys, set by app_key */
   unsigned kb;
   /* the pad's axes through the bindings (bind.h BA_*): the steering -1..1, the gas and the brake 0..1; the raw axes for the readout */
-  float ax_steer, ax_gas, ax_brake, ax_raw[14]; /* (bind.h AXIS_COUNT) */
+  float ax_steer, ax_gas, ax_brake, ax_raw[56]; /* (bind.h AXIS_COUNT) */
   int fps_on; /* the fps counter in the arcade HUD (the touch HUD always has it) */
   int readout; /* the input readout: steering, gas and brake bars (and the raw axes) while driving */
   int phys;    /* the physics panel: slip, grip in use, g-g plot (hud.c draw_phys; F4) */

@@ -2703,7 +2703,7 @@ static void bindings_note(menu_state *m, const char *s) { snprintf(m->bind_note,
 /* the wait for an input ends by itself after this long (a pad has no Escape: it must never be left waiting) */
 #define BIND_WAIT_FRAMES (8 * 60)
 static void bind_wait_on(menu_state *m) {
-  m->bind_wait = 1, m->bind_wait_t = 0;
+  m->bind_wait = 1, m->bind_wait_t = 0, m->n_axis_cand = 0, m->axis_choose = 0, m->axis_pick = 0;
   memcpy(m->axis_base, m->axis_raw, sizeof m->axis_base);
 }
 static void bind_wait_off(menu_state *m, const char *note) {
@@ -2783,14 +2783,23 @@ int menu_axis_capture(menu_state *m, int axis, float v) {
   if (axis >= AXIS_W0) { /* a wheel's axis: moved far from where it rested (a pedal rests at an end), not far from the middle */
     if (fabsf(v - m->axis_base[axis]) < 0.5f) return 0;
   } else if (v < 0.6f && v > -0.6f) return 0;
+  if (m->axis_choose) return 0;
+  for (int i = 0; i < m->n_axis_cand; ++i)
+    if (m->axis_cand[i] == axis) return 0;
+  if (m->n_axis_cand < 8) m->axis_cand[m->n_axis_cand++] = axis; /* (collected for the 5 s: bindings_step decides when they are over) */
+  return 1;
+}
+
+/* the axis chosen for the row: bound, the wait over */
+static void axis_apply(menu_state *m, int axis) {
   const bind_axis *a = bind_axis_get(m->bind_row);
   bind_axis_set(m->bind_row, axis, a->invert, a->dead);
-  m->bind_wait = 0;
+  m->bind_wait = 0, m->axis_choose = 0;
   m->garage_changed = 1;
   bindings_note(m, "");
   snd_menu(SND_SELECT);
-  return 1;
 }
+#define AXIS_WINDOW (5 * 60) /* the wait for an axis: every one that moves in this time counts, a choice if there are several */
 
 /* ---- the touch controls (the CONTROLS screen's other face, bind_touch: shown instead of the key lists while the last input was a touch, on a
  * touch HUD): the steering (BUTTONS, GYRO, WHEEL, STICK), the gyro's sensitivity, the slider pedals and the key to KEY LAYOUT. A pad or key
@@ -2973,6 +2982,22 @@ static void bindings_step(menu_state *m, const menu_in *in) {
     return;
   }
   int n = bind_rows(m->bind_ctx), cols = m->bind_ctx == BIND_CONTEXTS ? 4 : BIND_SLOTS;
+  if (m->bind_wait && m->bind_ctx == BIND_CONTEXTS && m->bind_col == 0 && m->bind_row < BA_COUNT) { /* an axis: a 5 s window, then the choice if several moved */
+    if (m->axis_choose) {
+      if (in->back || in->aux) bind_wait_off(m, "");
+      else if (in->dy) m->axis_pick = (m->axis_pick + in->dy + m->n_axis_cand) % m->n_axis_cand, snd_menu(SND_CURSOR);
+      else if (in->ok) axis_apply(m, m->axis_cand[m->axis_pick]);
+      return;
+    }
+    if (in->back || in->aux) {
+      bind_wait_off(m, "");
+    } else if (++m->bind_wait_t > AXIS_WINDOW) {
+      if (m->n_axis_cand == 1) axis_apply(m, m->axis_cand[0]);
+      else if (m->n_axis_cand == 0) bind_wait_off(m, "NOTHING MOVED: CANCELLED");
+      else m->axis_choose = 1, m->axis_pick = 0, snd_menu(SND_CURSOR);
+    }
+    return;
+  }
   if (m->bind_wait) {
     if (in->back || in->aux) { /* (the screen's back key, the pointer's: the bound inputs themselves go to the capture) */
       bind_wait_off(m, "");
@@ -3230,7 +3255,22 @@ static void draw_bindings(const menu_state *m, int clock, int bars, float screen
         hud_ui_rect(bx * k, (y + 7.0f) * k, bw * v * k, (BIND_ROW_DY - 16.0f) * k, r == BA_GAS ? 0.3f : 1.0f, r == BA_GAS ? 0.85f : 0.25f, 0.25f, 0.95f);
       }
     }
-    const char *ahint = m->bind_wait ? "MOVE A STICK OR PULL A TRIGGER   ANY BUTTON CANCELS" : "PRESS VIEW TO SWITCH CATEGORY";
+    char wbuf[96];
+    const char *ahint = "PRESS VIEW TO SWITCH CATEGORY";
+    if (m->bind_wait && m->axis_choose) ahint = "SEVERAL MOVED: UP AND DOWN CHOOSE, OK TAKES IT, BACK CANCELS";
+    else if (m->bind_wait) {
+      snprintf(wbuf, sizeof wbuf, "MOVE THE WHEEL OR A PEDAL (%d S LEFT, THEN YOU PICK IF SEVERAL MOVED)", (AXIS_WINDOW - m->bind_wait_t + 59) / 60);
+      ahint = wbuf;
+    }
+    if (m->bind_wait && m->bind_col == 0 && m->bind_row < BA_COUNT && m->n_axis_cand > 0) { /* what moved so far, and each one's value now */
+      for (int i = 0; i < m->n_axis_cand; ++i) {
+        const float y = 268.0f + 18.0f * (float)i, v = m->axis_raw[m->axis_cand[i]];
+        const int on = m->axis_choose && i == m->axis_pick;
+        hud_ui_rect(188.0f * k, y * k, 330.0f * k, 16.0f * k, on ? 0.35f : 0.0f, on ? 0.15f : 0.0f, 0.0f, on ? 0.9f : 0.55f);
+        hud_ui_text(bind_axis_name(m->axis_cand[i]), 194.0f * k, (y + 3.0f) * k, 1.8f, 1, 1, 1, 1);
+        hud_ui_rect(340.0f * k, (y + 5.0f) * k, 170.0f * k * 0.5f * (v + 1.0f), 6.0f * k, 1.0f, 0.42f, 0.05f, 0.95f);
+      }
+    }
     hud_ui_text(m->bind_note[0] ? m->bind_note : ahint, 20.0f * k, 388.0f * k, 1.7f, 0.85f, 0.85f, 0.85f, 1);
     hud_ui_end();
     return;

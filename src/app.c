@@ -1794,6 +1794,8 @@ static const signed char RACE_KEY[BR_COUNT] = { APP_KEY_LEFT, APP_KEY_RIGHT, APP
 
 int app_bind_capturing(void) { return menu_bind_capturing(&G.menu); }
 
+_Static_assert(AXIS_COUNT <= 56, "hud.ax_raw and menu.axis_raw hold 56 axes");
+
 void app_axis(int axis, float v) {
   if (axis < 0 || axis >= AXIS_COUNT) return;
   G.hud.ax_raw[axis] = G.menu.axis_raw[axis] = v;
