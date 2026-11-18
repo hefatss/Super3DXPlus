@@ -3009,8 +3009,25 @@ static void menu_draw3d(void *ctx) {
 
 static void eye_in(const mat4 *m, const float *p, float *out);
 
+/* the arcade's 60 Hz frames that went by since the miniature was last drawn (1 on a 60 Hz display, 0 or 1 on a 120 Hz one): its camera move and its
+ * glow's sequence count these, not draws, or they run twice as fast on a faster display */
+static int mini_ticks(void) {
+  static double last, acc;
+  double now = now_ms();
+  if (last == 0.0 || now - last > 250.0) {
+    last = now, acc = 0;
+    return 1;
+  }
+  acc += (now - last) * 0.06;
+  last = now;
+  int n = (int)(acc + 0.15);
+  acc -= n;
+  return n;
+}
+
 static void mini_draw(void *ctx, float fade) {
   const menu_state *m = ctx;
+  const int ticks = mini_ticks();
   int card = m->sel;
   int ten = m->screen == MENU_TEN_COURSE, vs = m->screen == MENU_VS_AREA;
   if (vs) card = m->vs.item;
@@ -3027,7 +3044,10 @@ static void mini_draw(void *ctx, float fade) {
   }
   float eye[3], at[3];
   float k = 1.0f;
-  if (G.mini_move) k = (float)(MINI_MOVE - --G.mini_move) * 0.125f;
+  if (G.mini_move) {
+    G.mini_move -= ticks < G.mini_move ? ticks : G.mini_move;
+    k = (float)(MINI_MOVE - G.mini_move) * 0.125f;
+  }
   for (int i = 0; i < 3; ++i) {
     eye[i] = G.mini_from[0][i] + (mc->eye[i] - G.mini_from[0][i]) * k;
     at[i] = G.mini_from[1][i] + (mc->at[i] - G.mini_from[1][i]) * k;
@@ -3050,7 +3070,8 @@ static void mini_draw(void *ctx, float fade) {
     render_blend_pass(pass == WPK_BLEND);
     wpk_draw(&G.mini, &vp, &ident, eye, pass, &rp);
   }
-  int f = G.mini_frame++ % MINI_FRAMES;
+  G.mini_frame += ticks;
+  int f = G.mini_frame % MINI_FRAMES;
   glDisable(GL_DEPTH_TEST);
   render_blend_pass(1);
   memset(G.mini_visible, 0, sizeof G.mini_visible);
