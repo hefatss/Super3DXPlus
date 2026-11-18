@@ -1359,9 +1359,10 @@ static void draw_vs_box(int i, float gap) {
 #define LAST_METRES 700
 enum { T_LAST_TONIKAKU = JID(4345), T_LAST_RIVAL = JID(2619), T_LAST_SAIGO = JID(2620), T_LAST_MADE = JID(1975), T_LAST_D2 = JID(4348), T_LAST_D1 = JID(4347),
        T_LAST_D0 = JID(4346), T_LAST_M = JID(4351), UV_LAST_TILL = 120, UV_LAST_D0 = 121, UV_LAST_M = 133, UV_LAST_UNTIL = 134, UV_LAST_KEEP = 135, UV_LAST_CAUGHT = 136 };
-static int last_t = -1;
+static long last_t0 = -1; /* (the sim's tick the call began at: it runs by 60 Hz ticks, not by draws, or it ran twice as fast on a 120 Hz display) */
+static int last_alarm = -1;
 
-static void draw_vs_last(const car_state *car) {
+static void draw_vs_last(const car_state *car, int story) {
   static int a_keep = -2, a_caught, a_digits;
   if (a_keep == -2) {
     a_keep = anm_find("cons_g_last_tonikaku");
@@ -1370,20 +1371,29 @@ static void draw_vs_last(const car_state *car) {
   }
   const car_race *r = &car->race;
   if (a_keep < 0 || a_caught < 0 || a_digits < 0 || r->play_state != 2 || r->countdown > 0.0f) {
-    last_t = -1;
+    last_t0 = -1, last_alarm = -1;
     return;
   }
-  float lead = r->remain;
-  for (int i = 0; i < vs_n; ++i)
-    if (r->vs_on[i] && r->remain + r->vs_gap[i] < lead) lead = r->remain + r->vs_gap[i];
+  float lead = r->remain; /* (the front car's distance to the goal) */
+  int first = 1;
+  if (story) {
+    /* a story race (issue 11): the rivals' distances are the player's plus their gap (S2DInfoStory: mm the rival is behind, negative ahead) */
+    for (int i = 0; i < 3; ++i)
+      if (r->story_on[i] && r->remain + r->story_gap[i] < lead) lead = r->remain + r->story_gap[i], first = 0;
+  } else {
+    for (int i = 0; i < vs_n; ++i)
+      if (r->vs_on[i] && r->remain + r->vs_gap[i] < lead) lead = r->remain + r->vs_gap[i];
+    first = r->vs_rank <= 0;
+  }
   if (lead < 0.0f) lead = 0.0f;
   if (lead > (float)LAST_METRES || r->remain <= 0.0f) {
-    last_t = -1;
+    last_t0 = -1, last_alarm = -1;
     return;
   }
-  if (last_t < 0) last_t = 0;
-  if (last_t % 300 == 0) snd_menu(SND_ALARM); /* (approach4 runs 4.9 s: again as it ends) */
-  int first = r->vs_rank <= 0, t = last_t++, m = (int)lead;
+  if (last_t0 < 0) last_t0 = (long)car->lamp_tick;
+  const int t = (int)((long)car->lamp_tick - last_t0);
+  if (t / 300 != last_alarm) last_alarm = t / 300, snd_menu(SND_ALARM); /* (approach4 runs 4.9 s: again as it ends) */
+  const int m = (int)lead;
   anm_swap sw[2] = { { anm_sprite(first ? T_LAST_SAIGO : T_LAST_TONIKAKU), uv(first ? UV_LAST_CAUGHT : UV_LAST_KEEP) },
                      { anm_sprite(first ? T_LAST_MADE : T_LAST_RIVAL), uv(first ? UV_LAST_TILL : UV_LAST_UNTIL) } };
   anm_draw_ex(first ? a_caught : a_keep, t % 60, 1, 0, 0, sw, 2);
@@ -1392,6 +1402,38 @@ static void draw_vs_last(const car_state *car) {
                      { anm_sprite(T_LAST_D1), digits < 2 ? -1 : uv(UV_LAST_D0 + m / 10 % 10) },
                      { anm_sprite(T_LAST_D0), uv(UV_LAST_D0 + m % 10) }, { anm_sprite(T_LAST_M), uv(UV_LAST_M) } };
   anm_draw_ex(a_digits, 120 + 60 * (3 - digits) + t % 60, 1, 0, 0, dg, 4);
+}
+
+/* ---- the distance callouts (cons_g_last_nokori, issue 11): "Remaining 5 km" and "Remaining 3 km" in the middle of the screen as the distance to the goal comes down through
+ * them (the newer builds show them; the animation is the last stretch's own digits with the unit swapped in: the UV cells 121.. the digit, 132 km;
+ * its word is the picture cons_p_finish_nokori itself). It plays its one-digit block, frames 240 to 299, once, by the sim's 60 Hz ticks. ---- */
+enum { UV_NOKORI_KM = 132 };
+static long remain_t0 = -1;
+static int remain_km;
+static float remain_prev = -1.0f;
+
+static void draw_remain_call(const car_state *car) {
+  static int anim = -2;
+  if (anim == -2) anim = anm_find("cons_g_last_nokori");
+  const car_race *r = &car->race;
+  if (anim < 0 || r->play_state != 2 || r->countdown > 0.0f) {
+    remain_t0 = -1, remain_prev = -1.0f;
+    return;
+  }
+  static const int KM[2] = { 5, 3 };
+  if (remain_prev >= 0.0f)
+    for (int k = 0; k < 2; ++k)
+      if (remain_prev > 1000.0f * (float)KM[k] && r->remain <= 1000.0f * (float)KM[k] && r->remain > 0.0f) remain_km = KM[k], remain_t0 = (long)car->lamp_tick;
+  remain_prev = r->remain;
+  if (remain_t0 < 0) return;
+  const int t = (int)((long)car->lamp_tick - remain_t0);
+  if (t >= 60) {
+    remain_t0 = -1;
+    return;
+  }
+  anm_swap sw[4] = { { anm_sprite(T_LAST_D2), -1 }, { anm_sprite(T_LAST_D1), -1 },
+                     { anm_sprite(T_LAST_D0), uv(UV_LAST_D0 + remain_km) }, { anm_sprite(T_LAST_M), uv(UV_NOKORI_KM) } };
+  anm_draw_ex(anim, 240 + t, 1, 0, 0, sw, 4);
 }
 
 /* ---- the route choice (clJunctionSelectConsole::setJunctionSelect, fed by CSeq::Get2DInfoJctSelect: the junction state and its two destinations): when
@@ -1476,7 +1518,7 @@ static void draw_vs(const car_state *car) {
   for (int i = 0; i < vs_n; ++i)
     if (r->vs_on[i]) draw_vs_box(i, r->vs_gap[i]);
   draw_junction(car);
-  draw_vs_last(car);
+  draw_vs_last(car, 0);
 }
 
 /* ---- the rivals' marks (clRivalMarkConsole: ctor 0x85cc9f8, update 0x85cdc90, draw 0x85ce998;
@@ -2675,8 +2717,12 @@ void hud_draw(const hud_state *h, const car_state *car, const car_input *in, flo
   }
   if (consoles) draw_rival_marks(car);
   draw_ten(car);
-  if (consoles && ta_story && ten_level < 0) draw_story_info(car);
+  if (consoles && ta_story && ten_level < 0) {
+    draw_story_info(car);
+    draw_vs_last(car, 1); /* (the last stretch's call in a story race too: issue 11) */
+  }
   if (consoles) draw_vs(car);
+  if (consoles && ten_level < 0) draw_remain_call(car);
   draw_ten_banner(car);
   draw_countdown(car);
   draw_cutin();

@@ -188,7 +188,7 @@ EXTRA_ANIMS = [
     "menu_g_finish_vs",  # (the versus' place at the goal: 1st/4)
     # the race's route choice (clJunctionSelectConsole) and the last stretch's call (clFinishConsole)
     "cons_g_bunki_select", "cons_g_bunki_mes_select", "cons_g_bunki_mes_next", "cons_g_bunki_flash",
-    "cons_g_last_000m", "cons_g_last_tonikaku", "cons_g_last_saigo", "cons_g_last_hasire",
+    "cons_g_last_000m", "cons_g_last_tonikaku", "cons_g_last_saigo", "cons_g_last_hasire", "cons_g_last_nokori",
     "menu_g_bottombar_bb_gd", "menu_g_bottombar_bb_hs_gd", "menu_g_bottombar_bp_gc", "menu_g_bottombar_bp_gc_vk_hs", "menu_g_bottombar_bp_gc_vs",
     "menu_g_bottombar_gc", "menu_g_bottombar_gd", "menu_g_bottombar_hc_gd", "menu_g_bottombar_hs_bb_gd", "menu_g_bottombar_hs_bb_gd_sc",
     "menu_g_bottombar_hs_bc_gd", "menu_g_bottombar_hs_bc_gd2", "menu_g_bottombar_hs_gd", "menu_g_bottombar_vp_gc_bk_hs",
@@ -355,9 +355,9 @@ def main():
             sprites.append((sid, im))
     for font in EXF_FONTS:
         sprites += [(EXF_BASE + 100 * font + (ord(c) - 32), mp.render_text(elf, names, root, font, c)) for c in map(chr, range(33, 127))]
-    # the UV table's cells the race consoles swap in (hud.c UV_BASE + n): the last stretch's big digits and lines (120..137), the route choice's arrows (218..231), boards and names (246..263), Wrong way (268)
+    # the UV table's cells the race consoles swap in (hud.c UV_BASE + n): the last stretch's big digits and lines (120..139: the km and Remaining of the distance callouts too), the route choice's arrows (218..231), boards and names (246..263), Wrong way (268)
     cells = mp.uv_cells()
-    for n in [*range(120, 138), *range(218, 232), *range(246, 264), 268]:
+    for n in [*range(120, 140), *range(218, 232), *range(246, 264), 268]:
         sid, (u0, v0, u1, v1) = cells[n]
         im = Image.open(f"{root}/{names[sid]}").convert("RGBA")
         w, h = im.size
