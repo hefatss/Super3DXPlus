@@ -7390,12 +7390,18 @@ static int tg_gem(const menu_state *m) {
   return p[0] == 'g' && p[1] == 'e' && p[2] == 'm';
 }
 
+/* the R35 has no body parts in the arcade (its dealership says so): no aero set, bonnet, wing, mirror or sticker to change to, only the wheels
+ * and the neon. The places are not offered (tg_sel_open_ok) and none is won (menu_dress_win): the models of those parts do not exist */
+static int tg_no_bodyparts(const menu_state *m) { return has(chosen_car(m, m->car)->label, "[R35]"); }
+static int tg_bodypart_kind(int kind) { return kind >= 1 && kind <= 5; } /* aero set, bonnet, wing, mirror, sticker */
+
 void menu_dress_win(menu_state *m, int wins) {
   int mk = m->maker, c = m->car, sl = menu_slot(m), gem = tg_gem(m);
   for (int k = 0; k < wins && m->dress_lv[mk][sl] < 63; ++k) {
     int lv = ++m->dress_lv[mk][sl];
-    /* every part but the gem cars' empty levels (kind 9) comes up on its GET screen */
-    if (DRESS_LADDER[gem][lv][0] != 9 && m->n_dress_due < MENU_DRESS_DUE) m->dress_due[m->n_dress_due++] = lv;
+    /* every part but the gem cars' empty levels (kind 9) comes up on its GET screen (the R35's body parts do not exist: none) */
+    if (DRESS_LADDER[gem][lv][0] != 9 && !(tg_no_bodyparts(m) && tg_bodypart_kind(DRESS_LADDER[gem][lv][0])) && m->n_dress_due < MENU_DRESS_DUE)
+      m->dress_due[m->n_dress_due++] = lv;
     /* a wheel won is chosen on its change screen after its GET (tg_wheel_open) */
     m->garage_changed = 1;
   }
@@ -8232,6 +8238,7 @@ static void tg_maker_open(menu_state *m);
 static int tg_sel_open_ok(const menu_state *m, int kind) {
   int mk = m->maker, c = m->car, sl = menu_slot(m), lv = m->dress_lv[mk][sl];
   if (!tg_sel_ported(kind)) return 0;
+  if (tg_no_bodyparts(m) && tg_bodypart_kind(kind)) return 0; /* (the R35's: only the sound of a place that cannot be opened) */
   if (kind != 0 && kind != 1 && kind != 2) return 1;
   int on = kind == 0 ? m->wheel[mk][sl] : kind == 1 ? m->aero[mk][sl] : m->bonnet[mk][sl];
   if (on) return 1;

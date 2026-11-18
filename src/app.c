@@ -1533,6 +1533,10 @@ void app_resize(int fb_width, int fb_height) {
  * folder), lines "aniso <1..16>" (the anisotropic degree: 1 off) and "lodbias <-3..3>" (mip
  * levels: negative sharper, so that the road ahead stays crisp further out); each also
  * WMMT_ANISO / WMMT_LODBIAS. Read before the programs are built (the bias goes into them). */
+/* the R35 has no body parts in the arcade (no aero set, bonnet, wing, mirror or sticker: its dealership says so, and the models do not exist); a save
+ * that has some from before is kept as it is, but not drawn (a bonnet that is not there is a black hole in the car) */
+static int pack_no_bodyparts(int pack) { return pack >= 0 && pack < CARDB_NPACKS && !strncmp(CARDB_PACKS[pack], "nis_R35", 7); }
+
 /* a tuned car's parts (clCarConstructParam: isTunedMufflerChange, isTunedRollCage by the card's tune power and handling): the
  * exhaust from a power level and the roll cage from a handling level (src/partdb.h, by pack), unless save_dir/graphics turns
  * them off ("exhaust 0", "rollcage 0") */
@@ -2164,7 +2168,15 @@ static void menu_aero_want(int pack, int set) {
     }
 }
 
+/* the R35's scene cars show no body parts, whatever the save holds (pack_no_bodyparts): the scene is the menu's of this frame, filled again the next */
+static void scene_mask_bodyparts(const menu_scene *cs) {
+  menu_scene *s = (menu_scene *)cs;
+  for (int i = 0; s && i < s->n; ++i)
+    if (pack_no_bodyparts(s->cars[i].pack)) s->cars[i].aero = s->cars[i].bonnet = s->cars[i].wing = s->cars[i].mirror = s->cars[i].vinyl = 0;
+}
+
 static void menu_aero_sync(const menu_scene *s) {
+  scene_mask_bodyparts(s);
   int pack[MENU_AERO_SLOTS], set[MENU_AERO_SLOTS], n = 0;
   for (int i = 0; s && i < s->n; ++i) {
     int a = s->cars[i].aero, dup = 0;
@@ -2876,6 +2888,7 @@ static void eye_in(const mat4 *m, const float *p, float *out);
 
 static void menu_draw3d(void *ctx) {
   const menu_scene *s = ctx;
+  scene_mask_bodyparts(s);
   float aspect = (float)G.fb_w / (float)G.fb_h;
   float fovy = 2.0f * atanf(tanf(s->fov_x * 0.5f) / (4.0f / 3.0f));
   mat4 proj = mat4_perspective(fovy, aspect, 5.0f, 20000.0f);
@@ -2931,6 +2944,8 @@ static void menu_draw3d(void *ctx) {
       float eye[3] = { (d[0] * m[0] + d[1] * m[1] + d[2] * m[2]) / k2, (d[0] * m[4] + d[1] * m[5] + d[2] * m[6]) / k2,
                        (d[0] * m[8] + d[1] * m[9] + d[2] * m[10]) / k2 };
       rp.mirror = s->cars[i].mirror, rp.wing = s->cars[i].wing, rp.bonnet = s->cars[i].bonnet;
+      const int nobody = pack_no_bodyparts(s->cars[i].pack);
+      if (nobody) rp.mirror = rp.wing = rp.bonnet = 0;
       rp.body_y = rp.muffler = rp.rollbar = rp.emblem = rp.glass = rp.cleartail = 0;
       if (s->cars[i].tuned) {
         int pw, hd;
@@ -2946,7 +2961,7 @@ static void menu_draw3d(void *ctx) {
       rp.wheel_rot = still;
       rp.wheels_hub = s->cars[i].turned;
       const char *page1 = "";
-      uint32_t vt = vinyl_tex(s->cars[i].pack, s->cars[i].aero, s->cars[i].paint, s->cars[i].vinyl, s->cars[i].bonnet, &page1,
+      uint32_t vt = vinyl_tex(s->cars[i].pack, s->cars[i].aero, s->cars[i].paint, nobody ? 0 : s->cars[i].vinyl, nobody ? 0 : s->cars[i].bonnet, &page1,
                               s->cars[i].aero ? scene[i] : NULL), vold = 0;
       int vi = vinyl_on(scene[i], vt, page1, &vold);
       wpk_draw(scene[i], &cvp, &model, eye, pass, &rp);
@@ -4267,6 +4282,7 @@ static void menu_frame(float dt, double frame_start) {
       G.race_model = car_pack(col->pack);
       wpk_paint(G.race_model, col->paint);
       int set = G.menu.aero[G.menu.maker][menu_slot(&G.menu)];
+      if (pack_no_bodyparts(col->pack)) set = 0;
 #ifdef WMMT_EGL
       if (getenv("WMMT_AERO")) set = atoi(getenv("WMMT_AERO")); /* test: this aero set */
 #endif
@@ -4462,6 +4478,7 @@ static void draw_race_cars(const car_state *c, const mat4 *vp, const float *eye_
     rp->mirror = G.menu.mirror[G.menu.maker][menu_slot(&G.menu)];
     rp->wing = G.menu.wing[G.menu.maker][menu_slot(&G.menu)];
     rp->bonnet = G.menu.bonnet[G.menu.maker][menu_slot(&G.menu)];
+    if (pack_no_bodyparts(G.race_pack)) rp->mirror = rp->wing = rp->bonnet = 0;
     {
       int pw, hd;
       menu_tune(&G.menu, &pw, &hd);
@@ -4473,7 +4490,7 @@ static void draw_race_cars(const car_state *c, const mat4 *vp, const float *eye_
     {
       const char *page1 = "";
       wpk_scene *cs = G.aero_set ? &G.aero : G.race_model;
-      uint32_t vt = vinyl_tex(G.race_pack, G.aero_set, chosen_color()->paint, G.menu.vinyl[G.menu.maker][menu_slot(&G.menu)],
+      uint32_t vt = vinyl_tex(G.race_pack, G.aero_set, chosen_color()->paint, pack_no_bodyparts(G.race_pack) ? 0 : G.menu.vinyl[G.menu.maker][menu_slot(&G.menu)],
                               rp->bonnet, &page1, G.aero_set ? &G.aero : NULL), vold = 0;
       int vi = vinyl_on(cs, vt, page1, &vold);
       wpk_draw(cs, vp, &car_m, eye_car, pass, rp);
