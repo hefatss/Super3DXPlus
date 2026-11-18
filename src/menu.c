@@ -4690,6 +4690,13 @@ static int card_field(int t, float *x, float *y) {
 
 #include "cardpages.h"
 
+/* the card's pages have arrows at either side for the touch screen (the view change and the steering turn them on the controls): shown where
+ * the pages can be turned, tapped in the band they stand in, CARD_ARROW_W from each edge (the menu's 640 wide space) */
+#define CARD_ARROW_W 64.0f
+#define CARD_ARROW_Y0 140.0f
+#define CARD_ARROW_Y1 400.0f
+static int card_arrows_on(const menu_state *m) { return m->card_back != MENU_SETTING && !m->deciding && cardpages_ok(); }
+
 static void draw_card(const menu_state *m, int clock, float fade, int bars, void (*draw3d)(void *), void *ctx) {
   const menu_own *o = &m->own[m->own_sel >= 0 ? m->own_sel : 0];
   const cardb_car *c = &CARDB_CARS[o->maker][o->car];
@@ -10685,6 +10692,11 @@ static int menu_pointer(const menu_state *m, menu_in *in) {
     return 1;
   }
   if (m->screen == MENU_CARD) {
+    /* the arrows at either side turn the card's pages (what the view change and the steering do); a tap elsewhere confirms */
+    if (card_arrows_on(m) && y >= CARD_ARROW_Y0 && y < CARD_ARROW_Y1) {
+      if (x < CARD_ARROW_W) return in->dx = -1, 1;
+      if (x >= 640.0f - CARD_ARROW_W) return in->dx = 1, 1;
+    }
     in->ok = 1;
     return 1;
   }
@@ -11774,6 +11786,7 @@ void menu_draw(const menu_state *m, float screen_w, float screen_h, void (*draw3
     if (m->t < FADE && !m->deciding) fade = (float)(m->t + 1) / FADE;
     if (m->card_page > 0 && cardpages_ok()) draw_card_page(m, clock, 1, bars, draw3d, ctx);
     else draw_card(m, clock, 1, bars, draw3d, ctx);
+    if (card_arrows_on(m)) arrows_pair(clock, 26.0f, 614.0f, 0.5f * (CARD_ARROW_Y0 + CARD_ARROW_Y1), fade, 1, 1); /* (the pages go round: both ways, always) */
     if (!m->deciding) hud_draw_menu_keys(screen_w, screen_h, m->key_held, 0, 1);
     anm_fill(0, 0, 0, 1.0f - fade);
     return;
