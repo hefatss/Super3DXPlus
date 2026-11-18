@@ -2786,7 +2786,7 @@ int menu_axis_capture(menu_state *m, int axis, float v) {
   if (m->axis_choose) return 0;
   for (int i = 0; i < m->n_axis_cand; ++i)
     if (m->axis_cand[i] == axis) return 0;
-  if (m->n_axis_cand < 8) m->axis_cand[m->n_axis_cand++] = axis; /* (collected for the 5 s: bindings_step decides when they are over) */
+  if (m->n_axis_cand < 5) m->axis_cand[m->n_axis_cand++] = axis; /* (collected for the 5 s: bindings_step decides when they are over) */
   return 1;
 }
 
@@ -3264,7 +3264,7 @@ static void draw_bindings(const menu_state *m, int clock, int bars, float screen
     }
     if (m->bind_wait && m->bind_col == 0 && m->bind_row < BA_COUNT && m->n_axis_cand > 0) { /* what moved so far, and each one's value now */
       for (int i = 0; i < m->n_axis_cand; ++i) {
-        const float y = 268.0f + 18.0f * (float)i, v = m->axis_raw[m->axis_cand[i]];
+        const float y = 298.0f + 16.0f * (float)i, v = m->axis_raw[m->axis_cand[i]];
         const int on = m->axis_choose && i == m->axis_pick;
         hud_ui_rect(188.0f * k, y * k, 330.0f * k, 16.0f * k, on ? 0.35f : 0.0f, on ? 0.15f : 0.0f, 0.0f, on ? 0.9f : 0.55f);
         hud_ui_text(bind_axis_name(m->axis_cand[i]), 194.0f * k, (y + 3.0f) * k, 1.8f, 1, 1, 1, 1);
