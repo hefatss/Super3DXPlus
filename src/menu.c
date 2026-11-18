@@ -833,6 +833,7 @@ static void own_wear(const menu_state *m, const menu_own *o, menu_car *c) {
   c->tune_hd = full ? CAR_TUNE_TOTAL - c->tune_pw : m->st_handling[mk][sl];
 }
 
+static void menu_aura_of(const menu_state *m, menu_car *c);
 int menu_scene3d(const menu_state *m, menu_scene *s) {
   /* all of it: a car's aero and cp left unset made the car select's cars aero cars not in
    * (push86, nothing drawn) */
@@ -919,6 +920,7 @@ int menu_scene3d(const menu_state *m, menu_scene *s) {
     s->cars[0].paint = c->paint;
     s->cars[0].aero = m->aero[m->maker][menu_slot(m)];
     tg_wear(m, &s->cars[0]);
+    if (m->screen != MENU_GARAGE) menu_aura_of(m, &s->cars[0]);
     for (int e = 0; e < 16; ++e) s->cars[0].model[e] = mm.m[e];
     s->n = 1;
     return 1;
@@ -6316,6 +6318,20 @@ static long milage_moved(const menu_state *m, int t) {
   if (t <= MILAGE_COUNT_AT) return 0;
   const int d = milage_dur(m);
   return t - MILAGE_COUNT_AT >= d ? m->milage_this : m->milage_this * (t - MILAGE_COUNT_AT) / d;
+}
+
+/* nsMenuCheck::checkAura: no aura up to 5000 km, then the level by the card's mileage (10000, 30000, 100000, 500000 km); the colour is by two bytes of the
+ * arcade's card (a byte * 1/3 - 1 against 0: both under is purple, which a card with the bytes at 0 gets: the port keeps none, so purple) */
+static void menu_aura_of(const menu_state *m, menu_car *c) {
+  long km = -1;
+  int color = 1;
+  if (m->screen == MENU_MILAGE) km = m->milage_total0 + m->milage_this;
+  else if (m->own_sel >= 0 && m->own_sel < m->n_own) km = (long)(m->own[m->own_sel].odo / 1000.0);
+  const char *e = getenv("MT3DX_AURA"); /* test: "<colour 0..3> <km>" */
+  if (e) color = atoi(e) & 3, km = strchr(e, ' ') ? atol(strchr(e, ' ') + 1) : 600000;
+  if (km <= 4999) return;
+  c->aura = color + 1;
+  c->aura_level = km > 500000 ? 4 : km > 100000 ? 3 : km > 30000 ? 2 : km > 10000 ? 1 : 0;
 }
 
 /* the tally in place of the way to the title, when a card drove a km this time */

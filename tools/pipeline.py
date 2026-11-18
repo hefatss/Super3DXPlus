@@ -184,6 +184,8 @@ def gen(arcade, phys):
     run("tools/stage/pack_backfire.py", view, "src/backfiredb.h")
     if os.path.isdir(os.path.join(d, "menu3d", "course")):
         run("tools/stage/pack_mini.py", view, "data/minicourse.wpk", "src/minicourse.h")
+    if os.path.isdir(os.path.join(d, "effect")):
+        run("tools/stage/pack_aura.py", view, "data/aura.wpk")
     print("  tools/stage/barricades.py main > tools/stage/barricades.txt")
     with open(os.path.join(ROOT, "tools", "stage", "barricades.txt"), "w", encoding="utf-8", newline="\n") as f:
         sh(PY, "tools/stage/barricades.py", main, env=env, stdout=f)

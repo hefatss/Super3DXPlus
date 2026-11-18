@@ -223,6 +223,9 @@ static struct {
   int hk_arrow; /* Hakone's board shown: 0 none, 1 hk_for, 2 hk_back */
   int arrow_table_ready;
   /* the course selects' 3D miniature of Tokyo (clMiniatureCourse, src/minicourse.h) */
+  /* the car's aura (data/aura.wpk, tools/stage/pack_aura.py): object colour * 5 + layer, 20 + colour its glow */
+  wpk_scene aura;
+  unsigned char aura_visible[24];
   wpk_scene mini;
   unsigned char mini_visible[MINI_OBJECTS];
   const mini_course *mini_shown; /* the card it shows (NULL off the course selects) */
@@ -1662,6 +1665,9 @@ int app_init(const char *data_dir, int fb_width, int fb_height, float screen_w, 
   snprintf(path, sizeof path, "%s/minicourse.wpk", data_dir);
   if (wpk_load(&G.mini, path) == 0) G.mini.two_sided = 1;
   else fprintf(stderr, "no %s, no 3D map on the course selects\n", path);
+  snprintf(path, sizeof path, "%s/aura.wpk", data_dir);
+  if (wpk_load(&G.aura, path) == 0) G.aura.two_sided = 1;
+  else fprintf(stderr, "no %s, no aura round the car\n", path);
   static const char *const TRAFFIC_FILE[CAR_TRAFFIC_MODELS] = { "nze121", "kzh100g", "truck", "rc2" };
   for (int k = 0; k < CAR_TRAFFIC_MODELS; ++k) {
     snprintf(path, sizeof path, "%s/traffic/%s.wpk", data_dir, TRAFFIC_FILE[k]);
@@ -2996,6 +3002,34 @@ static void menu_draw3d(void *ctx) {
       nview = cp_view;
     }
     lights_draw_neon(&nproj, &nview, model.m, s->cars[i].pack, s->cars[i].aero, s->cars[i].neon, &rp);
+  }
+  /* the aura (clMenuCar::setAura): the layers 01 .. 0(level + 1) of the colour, added, their veins running up the column at a pace each, the glow
+   * behind (a quad facing the camera) */
+  if (G.aura.n_batch) {
+    for (int i = 0; i < s->n; ++i) {
+      const int col = s->cars[i].aura - 1, lv = s->cars[i].aura_level;
+      if (col < 0 || col > 3 || !scene[i]) continue;
+      mat4 model, avp = vp;
+      memcpy(model.m, s->cars[i].model, sizeof model.m);
+      float eye[3];
+      eye_in(&model, s->eye, eye);
+      const float t = (float)(now_ms() * 0.001);
+      rp.object_visible = G.aura_visible;
+      rp.n_objects = 24;
+      render_begin(&rp);
+      render_blend_pass(1);
+      glDepthMask(GL_FALSE);
+      for (int l = 0; l <= lv && l < 5; ++l) {
+        memset(G.aura_visible, 0, sizeof G.aura_visible);
+        G.aura_visible[col * 5 + l] = 1;
+        rp.uv_shift[0] = fmodf(t * (0.15f + 0.05f * (float)l), 1.0f);
+        wpk_draw(&G.aura, &avp, &model, eye, WPK_BLEND, &rp);
+      }
+      rp.uv_shift[0] = 0;
+      glDepthMask(GL_TRUE);
+      rp.object_visible = NULL;
+      rp.n_objects = 0;
+    }
   }
   render_blend_pass(0);
 }

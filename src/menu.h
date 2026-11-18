@@ -547,6 +547,8 @@ typedef struct {
   int neon;
   /* its sticker (menu_state.vinyl's) */
   int vinyl;
+  /* its aura (clMenuCar::setAura): 0 none, else the colour + 1 (green, purple, red, blue) and its level 0..4 (nsMenuCheck::checkAura) */
+  int aura, aura_level;
   /* its wheels turned (the versus' cars flying in): each corner's rotation (a GL matrix's
    * columns, render_params.wheels'), at its own place */
   int turned;
