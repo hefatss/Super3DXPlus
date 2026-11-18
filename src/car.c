@@ -916,6 +916,7 @@ static void read_camera(car_state *c) {
   c->cam_blur = fminf(1.0f, fmaxf(0.0f, MF(P.cam + 0x48)));
   /* the back mirror's (clRaceThread::yield: CSeq::GetInfoMirrorCamera, CMachine's
    * GetInfoCarMirror: no sway), only for the view from the roof, the one that shows it */
+  c->view = P.view;
   c->mirror = P.view == CAR_VIEW_ROOF && P.mirror && (call(f_8982580, 1, P.mirror) & 0xff);
   if (c->mirror) {
     memcpy(c->mirror_view, VA(P.mirror), sizeof c->mirror_view);

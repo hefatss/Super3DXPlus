@@ -339,10 +339,10 @@ static GLuint upload(const unsigned char *px, unsigned w, unsigned h) {
  * chosen car's sprites are loaded, at hud_set_car. */
 #define METER_CARS ((int)(sizeof METERDB / sizeof METERDB[0]))
 static char meter_path[1024];
-static unsigned short METER_INDEX[METER_CARS][METER_ZONES][METERDB_MAX_PARTS];
+static unsigned short METER_INDEX[METER_CARS][2][METER_ZONES][METERDB_MAX_PARTS]; /* [car][0 behind, 1 the first person view's][zone][part] */
 static unsigned *meter_table; /* w, h, file offset per sprite */
 static unsigned meter_sprites;
-static hud_sprite METER[METERDB_MAX_PARTS];
+static hud_sprite METER[2][METERDB_MAX_PARTS]; /* the dials of the view behind the car, and of the first person view */
 static const meterdb_car *meter_car;
 static int meter_night; /* the zone in use: 2 * the card's meter + night */
 static int meter_style; /* the card's meter (hud_set_meter): 0 Normal, 1 For Racing, 2 SPECIAL */
@@ -358,39 +358,43 @@ static void meters_index(const char *data_dir) {
   char magic[4];
   unsigned n[2];
   if (!f) return;
-  if (fread(magic, 1, 4, f) == 4 && !memcmp(magic, "WMT1", 4) && fread(n, 4, 2, f) == 2 && n[0] == METER_CARS &&
+  if (fread(magic, 1, 4, f) == 4 && !memcmp(magic, "WMT2", 4) && fread(n, 4, 2, f) == 2 && n[0] == METER_CARS &&
       fread(METER_INDEX, sizeof METER_INDEX, 1, f) == 1 && (meter_table = malloc(12 * (size_t)n[1])) &&
       fread(meter_table, 12, n[1], f) == n[1])
     meter_sprites = n[1];
   fclose(f);
 }
 
-static unsigned char spr_warm[SPR_COUNT], meter_warm[METERDB_MAX_PARTS], navi_warm[2];
+static unsigned char spr_warm[SPR_COUNT], meter_warm[2][METERDB_MAX_PARTS], navi_warm[2];
 
 void hud_set_car(int pack, int night) {
   /* the race title page's already (hud_warm) */
   int zone = 2 * meter_style + (night != 0);
   if (meter_car && pack >= 0 && pack < METER_CARS && meter_car == &METERDB[pack] && meter_night == zone) return;
   memset(meter_warm, 0, sizeof meter_warm);
-  for (int i = 0; i < METERDB_MAX_PARTS; ++i)
-    if (METER[i].tex) glDeleteTextures(1, &METER[i].tex);
+  for (int v = 0; v < 2; ++v)
+    for (int i = 0; i < METERDB_MAX_PARTS; ++i)
+      if (METER[v][i].tex) glDeleteTextures(1, &METER[v][i].tex);
   memset(METER, 0, sizeof METER);
   meter_car = pack >= 0 && pack < METER_CARS ? &METERDB[pack] : NULL;
   meter_night = zone;
   FILE *f = meter_car && meter_sprites ? fopen(meter_path, "rb") : NULL;
   if (!f) return;
-  for (int i = 0; i < meter_car->n[meter_night]; ++i) {
-    unsigned id = METER_INDEX[pack][meter_night][i];
-    if (id >= meter_sprites) continue;
-    unsigned w = meter_table[3 * id], h = meter_table[3 * id + 1];
-    size_t size = (size_t)w * h * 4;
-    unsigned char *px = malloc(size);
-    if (px && fseek(f, (long)meter_table[3 * id + 2], SEEK_SET) == 0 && fread(px, 1, size, f) == size) {
-      METER[i].tex = upload(px, w, h);
-      METER[i].w = (float)w;
-      METER[i].h = (float)h;
+  for (int v = 0; v < 2; ++v) { /* (behind the car, then the first person view's: its dials are placed, and for some cars drawn, differently) */
+    const int n = v ? meter_car->n_in[meter_night] : meter_car->n[meter_night];
+    for (int i = 0; i < n; ++i) {
+      unsigned id = METER_INDEX[pack][v][meter_night][i];
+      if (id >= meter_sprites) continue;
+      unsigned w = meter_table[3 * id], h = meter_table[3 * id + 1];
+      size_t size = (size_t)w * h * 4;
+      unsigned char *px = malloc(size);
+      if (px && fseek(f, (long)meter_table[3 * id + 2], SEEK_SET) == 0 && fread(px, 1, size, f) == size) {
+        METER[v][i].tex = upload(px, w, h);
+        METER[v][i].w = (float)w;
+        METER[v][i].h = (float)h;
+      }
+      free(px);
     }
-    free(px);
   }
   fclose(f);
 }
@@ -471,14 +475,21 @@ static void draw_meters(const car_state *car) {
   if (!meter_car) return;
   glEnableVertexAttribArray(1);
   int night = meter_night;
+  /* the view: the first person one (the roof camera) has its own places for the dials, along the bottom of the screen's middle (the arcade's drawMeter
+   * takes the play view); the behind view's are by the right edge */
+  const int inside = car->view == CAR_VIEW_ROOF;
+  const meterdb_part *parts = inside ? meter_car->parts_in[night] : meter_car->parts[night];
+  const int count = inside ? meter_car->n_in[night] : meter_car->n[night];
   /* the rev lamp (the shift light of the For Racing and SPECIAL meters, yt::CMachine::GetRevLamp): lit above 0.86 of the rev limit */
   int lamp = car->rev_rate > 0.86f && car->lamp_tick % 5 >= 2; /* (CSeq::Get2DInfoMeter: on 3 frames of 5, A(0x89827c1)) */
-  for (int i = 0; i < meter_car->n[night]; ++i) {
-    const meterdb_part *p = &meter_car->parts[night][i];
+  for (int i = 0; i < count; ++i) {
+    const meterdb_part *p = &parts[i];
     if ((p->input == METER_LAMP_ON && !lamp) || (p->input == METER_LAMP_OFF && lamp)) continue;
     float deg = p->a0 + p->a1 * meter_input(p, car);
     if (p->add) glBlendFunc(GL_SRC_ALPHA, GL_ONE); /* the R35's glowing night needles */
-    draw_k(&METER[i], CLUSTER_X + (p->x - 560) * HUD_K, CLUSTER_Y + (p->y - 228) * HUD_K, deg, HUD_K);
+    /* behind: the arcade's (560, 228) is CLUSTER_X, CLUSTER_Y; inside: x about the middle of the screen (320 on the arcade's), y as there */
+    const float sx = inside ? 512.0f + (p->x - 320.0f) * HUD_K : CLUSTER_X + (p->x - 560) * HUD_K;
+    draw_k(&METER[inside][i], sx, CLUSTER_Y + (p->y - 228) * HUD_K, deg, HUD_K);
     if (p->add) glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   }
   glDisableVertexAttribArray(1);
@@ -952,7 +963,8 @@ int hud_warm(float screen_w, float screen_h, int n) {
   glEnableVertexAttribArray(1);
   glDisableVertexAttribArray(2);
   int left = 0;
-  for (int i = 0; i < METERDB_MAX_PARTS; ++i) left += warm_one(METER[i].tex, &meter_warm[i], &n);
+  for (int v = 0; v < 2; ++v)
+    for (int i = 0; i < METERDB_MAX_PARTS; ++i) left += warm_one(METER[v][i].tex, &meter_warm[v][i], &n);
   for (int i = 0; i < SPR_COUNT; ++i) left += warm_one(SPR[i].tex, &spr_warm[i], &n);
   for (int i = 0; i < 2; ++i) left += warm_one(NAVI.tex[i], &navi_warm[i], &n);
   glDisableVertexAttribArray(1);

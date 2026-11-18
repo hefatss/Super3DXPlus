@@ -4904,6 +4904,10 @@ void app_frame(float dt) {
   G.hud.ax_gas = bind_axis_value(BA_GAS, G.hud.ax_raw);
   G.hud.ax_brake = bind_axis_value(BA_BRAKE, G.hud.ax_raw);
   hud_input(&G.hud, &in);
+  { /* test: MT3DX_ROOF=1 starts in the roof view (the first person one) */
+    static int roof_done;
+    if (getenv("MT3DX_ROOF") && !roof_done && app_racing()) roof_done = 1, G.camera = 1, car_view(CAR_VIEW_ROOF);
+  }
   if (G.hud.camera_pressed) {
     G.camera ^= 1;
     car_view(G.camera ? CAR_VIEW_ROOF : CAR_VIEW_BEHIND);

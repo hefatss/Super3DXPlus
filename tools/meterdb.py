@@ -42,6 +42,7 @@ CAR_MODELS = A(0x9419EA0)
 SPRITES = A(0x9551560)
 OBJ, MGR = 0x1FE00000, 0x1FE01000
 VIEW_BEHIND = 1
+VIEW_INSIDE = 0  # (any other value: the first person view's own places for the dials; 0 is what the roof camera shows)
 INPUTS = ["none", "speed", "rev", "boost", "lamp_on", "lamp_off"]  # (the last two: the rev lamp lit, and not)
 STYLES = [0, 0x299, 0x29B]  # the card's meter 0, 1, 2: the flag drawMeter reads
 # the rev lamp (the shift light) of the For Racing (+0x29a) and SPECIAL (+0x29c) meters: clStandardConsole::update (A(0x85bc848)) sets it from
@@ -90,10 +91,10 @@ class Meter(Main):
         self.entries.append((sid, x, y, math.degrees(turn), int(blend == 1)))
         self.ret()
 
-    def draw(self, model, night, speed=0.0, rev=0.0, boost=0.0, style=0, lamp=0):
+    def draw(self, model, night, speed=0.0, rev=0.0, boost=0.0, style=0, lamp=0, view=VIEW_BEHIND):
         o = bytearray(0x300)
         struct.pack_into("<I", o, 4, MGR)
-        struct.pack_into("<3i", o, 0x27C, model, night, VIEW_BEHIND)
+        struct.pack_into("<3i", o, 0x27C, model, night, view)
         struct.pack_into("<3f", o, 0x28C, speed, rev, boost)
         if style:
             o[style] = 1
@@ -117,41 +118,44 @@ def main():
         first_model.setdefault(car, lo)
     here = os.path.dirname(os.path.abspath(__file__))
     packs = list(json.load(open(f"{here}/cars.json"))["packs"])  # CARDB_PACKS' order
-    cars, sprites = [], {}
+    cars, sprites, sprites_in = [], {}, {}
     for folder in packs:
         car = [f.lower() for f in folders].index(folder.lower())  # toy_UCF10_taxi is toy_UCF10_TAXI
         data = m.r32(CAR_DATA + 4 * car)
         hp, gears, flags = m.r32(data + 0x20), m.r32(data + 0x24), m.r32(data + 0x28)
-        parts = []
-        for style, night in [(s, n) for s in STYLES for n in (0, 1)]:
-            base = m.draw(first_model[car], night, style=style)
-            probes = [m.draw(first_model[car], night, 320.0, 0, 0, style), m.draw(first_model[car], night, 0, 1.0, 0, style),
-                      m.draw(first_model[car], night, 0, 0, 1.0, style)]
-            # (the R35 SpecV lights rev lamps near the red zone: sprites of their own, left out)
-            probes = [[e for e in p if e[0] in {b[0] for b in base}] for p in probes]
-            assert all(len(p) == len(base) for p in probes), folder
-            names = [m.sprite_name(e[0]) for e in base]
-            these = []
-            for i, (sid, x, y, a0, add) in enumerate(base):
-                moved = [k for k, p in enumerate(probes) if abs(p[i][3] - a0) > 1e-3]
-                assert len(moved) <= 1, (folder, names[i])
-                inp = moved[0] + 1 if moved else 0
-                these.append((x, y, a0, probes[moved[0]][i][3] - a0 if moved else 0.0, inp, add))
-            if style in LAMP_FLAG:  # the rev lamp: what is drawn when it is lit
-                lit = m.draw(first_model[car], night, 0, 0, 0, style, LAMP_FLAG[style])
-                lit_ids, base_ids = [e[0] for e in lit], [e[0] for e in base]
-                for i, e in enumerate(base):
-                    if e[0] not in lit_ids:  # (replaced when lit)
-                        these[i] = these[i][:4] + (5, these[i][5])
-                for k, e in enumerate(lit):
-                    if e[0] not in base_ids:
-                        at = min(k, len(these))
-                        these.insert(at, (e[1], e[2], 0.0, 0.0, 4, int(e[4])))
-                        names.insert(at, m.sprite_name(e[0]))
-            sprites.setdefault(folder, []).append(names)
-            parts.append(these)
-        cars.append(dict(folder=folder, car=car, hp=hp, gears=gears, boost=flags & 1, parts=parts))
-    json.dump(dict(cars=sprites), open(f"{here}/meters.json", "w"), indent=1)
+        views = []
+        for view, store in ((VIEW_BEHIND, sprites), (VIEW_INSIDE, sprites_in)):
+            parts = []
+            for style, night in [(s, n) for s in STYLES for n in (0, 1)]:
+                base = m.draw(first_model[car], night, style=style, view=view)
+                probes = [m.draw(first_model[car], night, 320.0, 0, 0, style, view=view), m.draw(first_model[car], night, 0, 1.0, 0, style, view=view),
+                          m.draw(first_model[car], night, 0, 0, 1.0, style, view=view)]
+                # (the R35 SpecV lights rev lamps near the red zone: sprites of their own, left out)
+                probes = [[e for e in p if e[0] in {b[0] for b in base}] for p in probes]
+                assert all(len(p) == len(base) for p in probes), folder
+                names = [m.sprite_name(e[0]) for e in base]
+                these = []
+                for i, (sid, x, y, a0, add) in enumerate(base):
+                    moved = [k for k, p in enumerate(probes) if abs(p[i][3] - a0) > 1e-3]
+                    assert len(moved) <= 1, (folder, names[i])
+                    inp = moved[0] + 1 if moved else 0
+                    these.append((x, y, a0, probes[moved[0]][i][3] - a0 if moved else 0.0, inp, add))
+                if style in LAMP_FLAG:  # the rev lamp: what is drawn when it is lit
+                    lit = m.draw(first_model[car], night, 0, 0, 0, style, LAMP_FLAG[style], view=view)
+                    lit_ids, base_ids = [e[0] for e in lit], [e[0] for e in base]
+                    for i, e in enumerate(base):
+                        if e[0] not in lit_ids:  # (replaced when lit)
+                            these[i] = these[i][:4] + (5, these[i][5])
+                    for k, e in enumerate(lit):
+                        if e[0] not in base_ids:
+                            at = min(k, len(these))
+                            these.insert(at, (e[1], e[2], 0.0, 0.0, 4, int(e[4])))
+                            names.insert(at, m.sprite_name(e[0]))
+                store.setdefault(folder, []).append(names)
+                parts.append(these)
+            views.append(parts)
+        cars.append(dict(folder=folder, car=car, hp=hp, gears=gears, boost=flags & 1, parts=views[0], parts_in=views[1]))
+    json.dump(dict(cars=sprites, cars_in=sprites_in), open(f"{here}/meters.json", "w"), indent=1)
 
     h = ["/* Generated by tools/meterdb.py from the arcade's clMeterConsole::drawMeter: do not edit. */",
          "#ifndef METERDB_H", "#define METERDB_H", "",
@@ -172,17 +176,21 @@ def main():
          "typedef struct {",
          "  int car;          /* the arcade's car id (stCarDataDefine) */",
          "  int hp, gears;    /* catalogue horsepower, forward gears */",
-         "  int n[METER_ZONES];",
+         "  int n[METER_ZONES], n_in[METER_ZONES];",
          "  meterdb_part parts[METER_ZONES][METERDB_MAX_PARTS];",
+         "  /* the first person view's own (the roof camera): the dials move to the bottom middle of the screen, and some cars show other art */",
+         "  meterdb_part parts_in[METER_ZONES][METERDB_MAX_PARTS];",
          "} meterdb_car;", "",
          "/* by CARDB_PACKS index */",
          "static const meterdb_car METERDB[%d] = {" % len(cars)]
-    for c in cars:
-        zones = ["{ %s }" % ", ".join("{ %g, %g, %g, %g, METER_%s, %d }" % (x, y, round(a0, 3), round(a1, 3),
+    def zones_of(parts):
+        return ["{ %s }" % ", ".join("{ %g, %g, %g, %g, METER_%s, %d }" % (x, y, round(a0, 3), round(a1, 3),
                                                                           INPUTS[i].upper() if i else "FIXED", add)
-                                      for x, y, a0, a1, i, add in z) for z in c["parts"]]
-        h.append("  { %d, %d, %d, { %s }, { %s } }, /* %s */" % (
-            c["car"], c["hp"], c["gears"], ", ".join(str(len(z)) for z in c["parts"]), ", ".join(zones), c["folder"]))
+                                      for x, y, a0, a1, i, add in z) for z in parts]
+    for c in cars:
+        h.append("  { %d, %d, %d, { %s }, { %s }, { %s }, { %s } }, /* %s */" % (
+            c["car"], c["hp"], c["gears"], ", ".join(str(len(z)) for z in c["parts"]), ", ".join(str(len(z)) for z in c["parts_in"]),
+            ", ".join(zones_of(c["parts"])), ", ".join(zones_of(c["parts_in"])), c["folder"]))
     h += ["};", "", "#endif", ""]
     open(f"{here}/../src/meterdb.h", "w").write("\n".join(h))
     print("%d cars, %d sprites" % (len(cars), sum(sum(len(z) for z in s) for s in sprites.values())))

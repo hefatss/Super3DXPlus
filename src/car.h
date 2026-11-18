@@ -178,6 +178,7 @@ typedef struct {
   float cam_fov;      /* horizontal field of view, radians (the arcade's screen is 4:3) */
   float cam_near;
   float cam_blur;     /* the radial blur's strength (clGraphicFrame::setBlur clamps it to 0..1) */
+  int view;           /* the play view now (CAR_VIEW_ROOF or CAR_VIEW_BEHIND): the HUD's dials sit by it */
   int mirror;         /* the back mirror's camera below is this frame's (the roof view only) */
   float mirror_view[16], mirror_fov, mirror_near; /* as cam_view, cam_fov (horizontal), cam_near */
   int jct_block[2];   /* junction blocks to show (ids for car_jct_block_name, 0 = none) */

@@ -5,7 +5,7 @@ usage: hudpack.py <arcade data/sprite dir> <main> <out dir>
 
 hud.bin: "WHD1", u32 count, then per sprite: name[32], u32 w, u32 h, w*h*4 bytes.
 meters.bin (tools/meters.json from meterdb.py, by CARDB_PACKS index like src/meterdb.h):
-  "WMT1", u32 cars, u32 sprites; cars x 2 (morning, night) x 9 u16 sprite numbers in
+  "WMT2", u32 cars, u32 sprites; cars x 2 views (behind the car, the first person) x 6 zones (3 meters x morning, night) x 9 u16 sprite numbers in
   meterdb's part order (0xffff past the last); sprites x {u32 w, h, file offset}; pixels.
   hud.c loads only the chosen car's."""
 import json
@@ -152,16 +152,17 @@ def pack_hud(sprite_dir, main, out):
 
 def pack_meters(sprite_dir, out):
     here = os.path.dirname(os.path.abspath(__file__))
-    meters = json.load(open(f"{here}/meters.json"))["cars"]
+    mj = json.load(open(f"{here}/meters.json"))
     packs = list(json.load(open(f"{here}/cars.json"))["packs"])  # CARDB_PACKS' order
     order, index = [], []
     for folder in packs:
-        for zone in meters[folder]:
-            assert len(zone) <= MAX_PARTS, folder
-            for n in zone:
-                if n not in order:
-                    order.append(n)
-            index += [order.index(n) for n in zone] + [0xFFFF] * (MAX_PARTS - len(zone))
+        for view in (mj["cars"], mj["cars_in"]):  # (behind the car, then the first person view's: its own dials for some cars)
+            for zone in view[folder]:
+                assert len(zone) <= MAX_PARTS, folder
+                for n in zone:
+                    if n not in order:
+                        order.append(n)
+                index += [order.index(n) for n in zone] + [0xFFFF] * (MAX_PARTS - len(zone))
     ims = [open_sprite(sprite_dir, n) for n in order]
     off = 12 + 2 * len(index) + 12 * len(ims)
     table = b""
@@ -169,7 +170,7 @@ def pack_meters(sprite_dir, out):
         table += struct.pack("<3I", *im.size, off)
         off += im.size[0] * im.size[1] * 4
     with open(out, "wb") as f:
-        f.write(b"WMT1" + struct.pack("<2I", len(packs), len(ims)))
+        f.write(b"WMT2" + struct.pack("<2I", len(packs), len(ims)))
         f.write(struct.pack(f"<{len(index)}H", *index) + table)
         for im in ims:
             f.write(im.tobytes())
