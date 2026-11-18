@@ -38,6 +38,10 @@ What Super3DX+ adds or changes compared with [Re3DX+](NOTICE.md). Longer explana
 - Windows: a racing wheel on its maker's driver (a Fanatec) says "forces not available" and its axes and buttons cannot be bound: SDL's RawInput and Windows.Gaming.Input drivers took it first and have no forces. The wheel now comes through DirectInput; the reason SDL gives for a refused force device is shown in the settings (issue 2)
 - The turbo's whine was far too loud against the engine ("a jet engine", issue 6): measured on a recording of the arcade's own tuned Evo IX it sits about 19 dB under the engine, here it sat 9 to 11 dB under. Its level is now the arcade's; the whine's pitch was already right
 - Volume mixer: ENGINE and TURBO rows (0 to 200%, 100% = the arcade's balance) to set the engine against the turbo's whine
+- Fixed the course select's run light (the glow riding the route on the 3D Tokyo map) drawing as an offset white box when the data is built on Windows (issue 8): the converter compared path names with the wrong slashes there, so the glow's texture was left out. Run `python build.py gensrc` again (it rebuilds `data/minicourse.wpk`), then the setup or `build.py exe`
+- Fixed tuned cars missing the exhaust, roll cage, lowering and other tuned parts in the colours that belong to another trim (the Lancer Evos' RS whites, the Impreza GC8's RA colours, the R34 Nür, the 964's RS and others): the tune table only knew each car's first colour's model, the others were left at "never". Every colour's own model is used now (`python build.py gensrc`, then rebuild the player)
+- Wheel force feedback that stopped after a minute or two (a Thrustmaster T300RS, until the device was switched off and on in the settings): the player now notices a force the driver dropped or a refused update, starts it again or opens the wheel again by itself, and logs it in `wheel-diag.txt`
+- Wheel settings STEERING RESPONSE and MINIMUM FORCE (off by default): for a wheel that gives strong forces in TEST but almost none in a race (a Thrustmaster T300RS), they make the small cornering pulls larger and lift forces the driver would ignore; see `docs/INPUT.md`
 - Exhaust flames follow the tuned exhaust's pipes (the Savanna RX-7's single tuned pipe, and other cars)
 - Arcade-style race HUD alongside the touch HUD, with a debug options menu
 - Texture sharpness and graphics options (HD textures, wet road, paint reflections, anti-aliasing)
@@ -46,8 +50,11 @@ What Super3DX+ adds or changes compared with [Re3DX+](NOTICE.md). Longer explana
 ## Platforms and builds
 
 - Export (English) build support and an English language layer
-- Updated Android player (64-bit ARM, Android 9+, Vulkan or GLES3 with `--novk`)
-- `build.py` and `tools/pipeline.py` build driver: Python 3.9+ and a JDK, no WSL
-- Guided setup (`setup-android.bat` / `setup-android.sh`): installs what it needs, finds and checks your game folder, converts the data, builds the APK, and explains failures in plain language
-- Updates only redo what changed: a new version usually rebuilds just the app in minutes, keeping your converted data and saves
+- Raspberry Pi 5 support with composite CRT output (and optional HDMI)
+- Windows, Linux and updated Android players
+- Windowed / fullscreen mode (F11 or Alt+Enter), remembered between starts
+- `build.py` and `tools/pipeline.py` build driver: Python 3.9+ and a C compiler, no WSL
+- Guided setup (`setup.bat` / `setup.sh`): installs what it needs, finds and checks your game folder, builds, and explains failures in plain language
+- Updates only redo what changed: a new version usually rebuilds just the game program in minutes, keeping your data and saves
+- `setup-pi`: builds and installs the game on a Raspberry Pi over the network, with the boot service and composite/HDMI output
 - `setup-android`: builds one self-contained Android app (any OS) and can install it over USB

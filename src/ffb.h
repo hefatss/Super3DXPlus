@@ -14,7 +14,9 @@
 #include "car.h"
 
 /* the settings: tenths 0..10 except the switches (0 / 1) and the device (0 none, else the platform's list + 1) */
-enum { FFB_ON, FFB_DEVICE, FFB_INVERT, FFB_OVERALL, FFB_STEER, FFB_CENTER, FFB_DAMP, FFB_ROAD, FFB_COUNT };
+enum { FFB_ON, FFB_DEVICE, FFB_INVERT, FFB_OVERALL, FFB_STEER, FFB_CENTER, FFB_DAMP, FFB_ROAD, FFB_CURVE, FFB_MIN, FFB_COUNT };
+/* FFB_CURVE lifts the small steering forces (0 as they are, 10 the strongest: force ^ (1 - 0.05 n)); FFB_MIN gives any steering force at least n * 2 % of the
+ * motor (a wheel whose driver ignores the faintest forces, the Thrustmaster T300RS). Both 0 by default: a wheel that works is felt as before. */
 int *ffb_val(int id);
 
 /* the platform's devices (every joystick it found; haptic says the device can play forces): names are copied */

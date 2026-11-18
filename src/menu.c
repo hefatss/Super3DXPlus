@@ -2618,15 +2618,17 @@ static void draw_volume(const menu_state *m, int clock, int bars, float screen_w
 #define BIND_COL_W 110.0f
 #define BIND_Y_ROW 128.0f
 #define BIND_ROW_DY 23.0f
+#define FR_Y0 124.0f /* (the wheel list has more rows: a tighter step) */
+#define FR_DY 20.0f
 #define BIND_Y_TAB 90.0f
 /* the lists: the menus' and the race's keys, the analog axes (BA_*), and a steering wheel's force feedback (ffb.h; no bindings, its own rows) */
 #define BIND_FFB (BIND_CONTEXTS + 1)
 #define BIND_TABS (BIND_CONTEXTS + 2)
 static const char *const BIND_TAB[BIND_TABS] = { "MENUS", "RACE", "AXES", "WHEEL" };
 /* the wheel list's rows: the device, the two switches, the four strengths (tenths), the test; the settings' ids, and the names */
-enum { FR_DEVICE, FR_ON, FR_INVERT, FR_OVERALL, FR_STEER, FR_CENTER, FR_DAMP, FR_ROAD, FR_TEST, FR_COUNT };
-static const signed char FR_ID[FR_COUNT] = { FFB_DEVICE, FFB_ON, FFB_INVERT, FFB_OVERALL, FFB_STEER, FFB_CENTER, FFB_DAMP, FFB_ROAD, -1 };
-static const char *const FR_NAME[FR_COUNT] = { "DEVICE", "FORCE FEEDBACK", "INVERT FORCE", "OVERALL", "STEERING FORCE", "CENTERING", "DAMPING", "ROAD EFFECTS", "TEST" };
+enum { FR_DEVICE, FR_ON, FR_INVERT, FR_OVERALL, FR_STEER, FR_CENTER, FR_DAMP, FR_ROAD, FR_CURVE, FR_MIN, FR_TEST, FR_COUNT };
+static const signed char FR_ID[FR_COUNT] = { FFB_DEVICE, FFB_ON, FFB_INVERT, FFB_OVERALL, FFB_STEER, FFB_CENTER, FFB_DAMP, FFB_ROAD, FFB_CURVE, FFB_MIN, -1 };
+static const char *const FR_NAME[FR_COUNT] = { "DEVICE", "FORCE FEEDBACK", "INVERT FORCE", "OVERALL", "STEERING FORCE", "CENTERING", "DAMPING", "ROAD EFFECTS", "STEERING RESPONSE", "MINIMUM FORCE", "TEST" };
 static const char *const FR_NOTE[FR_COUNT] = {
   "THE STEERING WHEEL: LEFT AND RIGHT CHOOSE. STEERING AND PEDALS ARE SET ON THE AXES LIST",
   "THE WHEEL'S MOTOR ON OR OFF",
@@ -2636,6 +2638,8 @@ static const char *const FR_NOTE[FR_COUNT] = {
   "A SPRING TO STRAIGHT AHEAD THAT GROWS WITH SPEED",
   "RESISTANCE TO FAST TURNS OF THE WHEEL, FOR STEADINESS",
   "THE SHAKE OF EXPANSION JOINTS, WALL HITS AND SLIDING TYRES",
+  "MAKES THE SMALL PULLS OF GENTLE CURVES STRONGER (0 % AS BEFORE); FOR A WHEEL THAT FEELS NOTHING ON THE ROAD",
+  "THE FAINTEST FORCE GETS AT LEAST THIS MUCH OF THE MOTOR; FOR A DRIVER THAT IGNORES WEAK FORCES (T300)",
   "A SWEEP FROM SIDE TO SIDE, THEN A SHAKE: HOLD THE WHEEL LOOSELY"
 };
 #define FR_CELL_W 330.0f /* the value cell's width (it starts at the axes list's first cell) */
@@ -3102,17 +3106,17 @@ static void draw_bindings(const menu_state *m, int clock, int bars, float screen
   }
   if (ctx == BIND_FFB) { /* the wheel: the device, the switches, the strengths as bars, the test */
     for (int r = 0; r <= n; ++r) {
-      float y = BIND_Y_ROW + BIND_ROW_DY * (float)r;
+      float y = FR_Y0 + FR_DY * (float)r;
       int row_on = r == m->bind_row;
-      hud_ui_rect(0, y * k, 640.0f * k, (BIND_ROW_DY - 2.0f) * k, 0, 0, 0, r & 1 ? 0.25f : 0.38f);
-      if (row_on) hud_ui_rect(2.0f * k, y * k, 4.0f * k, (BIND_ROW_DY - 2.0f) * k, 1.0f, 0.42f, 0.05f, 1.0f);
+      hud_ui_rect(0, y * k, 640.0f * k, (FR_DY - 2.0f) * k, 0, 0, 0, r & 1 ? 0.25f : 0.38f);
+      if (row_on) hud_ui_rect(2.0f * k, y * k, 4.0f * k, (FR_DY - 2.0f) * k, 1.0f, 0.42f, 0.05f, 1.0f);
       if (r == n) {
         hud_ui_text("RESET TO DEFAULT", BIND_X_NAME * k, (y + 5.0f) * k, 2.0f, row_on ? 1.0f : 0.8f, row_on ? 0.55f : 0.8f, row_on ? 0.15f : 0.8f, 1);
         continue;
       }
       hud_ui_text(FR_NAME[r], BIND_X_NAME * k, (y + 5.0f) * k, 2.0f, 1, 1, 1, 1);
       const float cx = AX_X[0], cw = FR_CELL_W;
-      hud_ui_rect(cx * k, (y + 1.0f) * k, cw * k, (BIND_ROW_DY - 4.0f) * k, row_on ? 0.35f : 0.0f, row_on ? 0.15f : 0.0f, 0.0f, row_on ? 0.85f : 0.4f);
+      hud_ui_rect(cx * k, (y + 1.0f) * k, cw * k, (FR_DY - 4.0f) * k, row_on ? 0.35f : 0.0f, row_on ? 0.15f : 0.0f, 0.0f, row_on ? 0.85f : 0.4f);
       if (row_on) hud_ui_rect(cx * k, (y + 1.0f) * k, cw * k, 2.0f, 1.0f, 0.42f, 0.05f, 1.0f);
       const int v = r == FR_TEST ? 0 : *ffb_val(FR_ID[r]);
       char txt[160];
@@ -3121,7 +3125,7 @@ static void draw_bindings(const menu_state *m, int clock, int bars, float screen
       else if (r == FR_TEST) snprintf(txt, sizeof txt, "PLAY");
       else {
         snprintf(txt, sizeof txt, "< %d %% >", v * 10);
-        hud_ui_rect(cx * k, (y + BIND_ROW_DY - 6.0f) * k, cw * ((float)v / 10.0f) * k, 3.0f, 1.0f, 0.42f, 0.05f, 0.9f); /* (the strength under the number) */
+        hud_ui_rect(cx * k, (y + FR_DY - 6.0f) * k, cw * ((float)v / 10.0f) * k, 3.0f, 1.0f, 0.42f, 0.05f, 0.9f); /* (the strength under the number) */
       }
       float px = 1.9f;
       while (px > 1.2f && hud_ui_text_width(txt, px) > (cw - 8.0f) * k) px -= 0.1f;
@@ -10533,7 +10537,7 @@ static int menu_pointer(const menu_state *m, menu_in *in) {
         return 1;
       }
     }
-    int row = (int)floorf((y - BIND_Y_ROW) / BIND_ROW_DY * k), n = bind_rows(m->bind_ctx);
+    int row = m->bind_ctx == BIND_FFB ? (int)floorf((y - FR_Y0) / FR_DY * k) : (int)floorf((y - BIND_Y_ROW) / BIND_ROW_DY * k), n = bind_rows(m->bind_ctx);
     if (row < 0 || row > n) return 1;
     if (row == n) {
       in->select = row * BIND_SLOTS, in->ok = 1;

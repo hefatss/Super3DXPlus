@@ -24,7 +24,7 @@ static struct {
   int test;                       /* frames of the test left */
   int test_total;
   int loaded;
-} F = { .v = { 1, 0, 0, 6, 7, 3, 3, 5 }, .last_idx = -1 };
+} F = { .v = { 1, 0, 0, 6, 7, 3, 3, 5, 0, 0 }, .last_idx = -1 };
 
 static float clampf(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
 
@@ -102,7 +102,7 @@ void ffb_step(const car_state *c, int running) {
 }
 
 void ffb_defaults(void) {
-  static const int D[FFB_COUNT] = { 1, 0, 0, 6, 7, 3, 3, 5 };
+  static const int D[FFB_COUNT] = { 1, 0, 0, 6, 7, 3, 3, 5, 0, 0 };
   for (int i = 0; i < FFB_COUNT; ++i)
     if (i != FFB_DEVICE) F.v[i] = D[i];
 }
@@ -127,7 +127,15 @@ void ffb_get(ffb_out *o) {
   }
   if (!F.running) return;
   const float inv = F.v[FFB_INVERT] ? -1.0f : 1.0f;
-  o->force = clampf(F.sat * (float)F.v[FFB_STEER] / 10.0f * inv, -1.0f, 1.0f);
+  /* the steering force: the response curve first (a small pull of the tyres made larger), then the strength, then the faintest force the driver lets through */
+  float s = F.sat;
+  if (F.v[FFB_CURVE] > 0 && s != 0.0f) s = copysignf(powf(fabsf(s), 1.0f - 0.05f * (float)F.v[FFB_CURVE]), s);
+  float force = clampf(s * (float)F.v[FFB_STEER] / 10.0f, -1.0f, 1.0f);
+  if (F.v[FFB_MIN] > 0 && fabsf(force) > 0.004f) {
+    const float lo = 0.02f * (float)F.v[FFB_MIN];
+    force = copysignf(lo + (1.0f - lo) * fabsf(force), force);
+  }
+  o->force = clampf(force * inv, -1.0f, 1.0f);
   o->spring = clampf((float)F.v[FFB_CENTER] / 10.0f * F.speed, 0.0f, 1.0f);
   o->damper = clampf((float)F.v[FFB_DAMP] / 10.0f * (0.3f + 0.7f * F.speed), 0.0f, 1.0f);
   o->vib = clampf(F.vib * (float)F.v[FFB_ROAD] / 10.0f, 0.0f, 1.0f);
@@ -155,6 +163,8 @@ void ffb_load(const char *dir) {
     } else if (sscanf(line, "values %d %d %d %d %d %d %d", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6]) == 7) {
       F.v[FFB_ON] = v[0] != 0, F.v[FFB_INVERT] = v[1] != 0;
       for (int i = 0; i < 5; ++i) F.v[FFB_OVERALL + i] = (int)clampf((float)v[2 + i], 0.0f, 10.0f);
+    } else if (sscanf(line, "curve %d %d", &v[0], &v[1]) == 2) { /* (after "values", so a file from before keeps 0 and 0) */
+      F.v[FFB_CURVE] = (int)clampf((float)v[0], 0.0f, 10.0f), F.v[FFB_MIN] = (int)clampf((float)v[1], 0.0f, 10.0f);
     }
   }
   fclose(f);
@@ -182,6 +192,7 @@ void ffb_save(const char *dir) {
   if (!f) return;
   fprintf(f, "ffb 1\ndevice %s\nvalues %d %d %d %d %d %d %d\n", F.name, F.v[FFB_ON], F.v[FFB_INVERT], F.v[FFB_OVERALL], F.v[FFB_STEER], F.v[FFB_CENTER],
           F.v[FFB_DAMP], F.v[FFB_ROAD]);
+  fprintf(f, "curve %d %d\n", F.v[FFB_CURVE], F.v[FFB_MIN]);
   fclose(f);
   memcpy(F.saved, F.v, sizeof F.saved);
 }
