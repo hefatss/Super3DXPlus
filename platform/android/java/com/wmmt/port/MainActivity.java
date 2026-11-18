@@ -405,6 +405,13 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback, Se
 
   /* ---- called by the game's thread ---- */
 
+  private void dropMovie(VideoView v) {
+    if (movie != v || v == null) return;
+    v.stopPlayback();
+    root.removeView(v);
+    movie = null;
+  }
+
   /* the attract movie (data dir's intro.mp4 etc.), or none for null */
   void showMovie(final String name) {
     runOnUiThread(() -> {
@@ -422,8 +429,11 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback, Se
       movie = new VideoView(this);
       movie.setZOrderMediaOverlay(true);
       movie.setVideoPath(f.getAbsolutePath());
-      movie.setOnCompletionListener(mp -> nativeMovieDone());
-      movie.setOnErrorListener((mp, what, extra) -> { nativeMovieDone(); return true; });
+      /* a finished movie is taken off the screen at once: a VideoView keeps its last frame up (the intro's is white), and the game, which only asks
+       * for a movie to be shown or gone when the attract loop changes, would never take it down (the AYN Thor: white screen for good) */
+      final VideoView mine = movie;
+      movie.setOnCompletionListener(mp -> { dropMovie(mine); nativeMovieDone(); });
+      movie.setOnErrorListener((mp, what, extra) -> { dropMovie(mine); nativeMovieDone(); return true; });
       /* a tap on the movie is the arcade's "press the gas" */
       movie.setOnTouchListener((v, e) -> {
         if (e.getActionMasked() == MotionEvent.ACTION_DOWN) nativePressStart();
