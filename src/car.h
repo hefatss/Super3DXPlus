@@ -158,6 +158,7 @@ typedef struct {
   unsigned lamp_tick; /* arcade frames passed (the shift light blinks on it: the arcade counter at 0x9802828) */
   float boost;      /* the turbo's boost (CTurbo +4) */
   int gear;         /* 1..5 as the arcade gearbox reports it, 0 = neutral */
+  int start_gear;   /* the gear the rolling start asks the manual for (the countdown's "Put the gear in N") */
   int manual;       /* 0 = automatic (the arcade's AT setting), 1 = manual */
   int on_ground;
   float wall_hit;   /* >0 for a short time after scraping a wall (for effects) */

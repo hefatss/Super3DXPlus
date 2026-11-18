@@ -65,7 +65,9 @@ def main():
             m = dict(m)
             if "color" in m["verts"]:
                 v = dict(m["verts"])
-                v["color"] = np.full_like(v["color"], 255)  # (the shader reads no vertex colour)
+                c = v["color"].copy()
+                c[..., :3] = 255  # (the colour is the texture's; the vertices' alpha stays: it fades the rings out at their top, bottom and ends)
+                v["color"] = c
                 m["verts"] = v
             m["state"] = dict(m["state"], blend=True, blend_func=(4, 5))  # (alpha blended: added, it whites out a light backdrop)
             out.append(m)

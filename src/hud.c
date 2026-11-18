@@ -1372,6 +1372,7 @@ static void draw_vs_last(const car_state *car, int story) {
   }
   const car_race *r = &car->race;
   if (a_keep < 0 || a_caught < 0 || a_digits < 0 || r->play_state != 2 || r->countdown > 0.0f) {
+    if (last_t0 >= 0) snd_stop_effect("approach4");
     last_t0 = -1, last_alarm = -1;
     return;
   }
@@ -1388,6 +1389,7 @@ static void draw_vs_last(const car_state *car, int story) {
   }
   if (lead < 0.0f) lead = 0.0f;
   if (lead > (float)LAST_METRES || r->remain <= 0.0f) {
+    if (last_t0 >= 0) snd_stop_effect("approach4"); /* (over the line: the alarm is off) */
     last_t0 = -1, last_alarm = -1;
     return;
   }
@@ -1409,7 +1411,7 @@ static void draw_vs_last(const car_state *car, int story) {
  * them (the newer builds show them; the animation is the last stretch's own digits with the unit swapped in: the UV cells 121.. the digit, 132 km;
   * its word: the picture cons_p_finish_nokori, 残り, where the English build has cons_p_last_remaining). It plays its one-digit block (frames 240 to 299, the digit's colour
  * pulse) over two fades in and out, 54 ticks each, with a glint (approach6) as it comes, by the sim's 60 Hz ticks (the reference video's 5 km and 3 km). ---- */
-enum { UV_NOKORI_KM = 132, REMAIN_PULSE = 54 };
+enum { UV_NOKORI_KM = 132, REMAIN_PULSE = 54, REMAIN_WORD_DX = -10, REMAIN_WORD_DY = 0 };
 static long remain_t0 = -1;
 static int remain_km;
 static float remain_prev = -1.0f;
@@ -1419,6 +1421,7 @@ static void draw_remain_call(const car_state *car) {
   if (anim == -2) anim = anm_find("cons_g_last_nokori");
   const car_race *r = &car->race;
   if (anim < 0 || r->play_state != 2 || r->countdown > 0.0f) {
+    if (remain_t0 >= 0) snd_stop_effect("approach6");
     remain_t0 = -1, remain_prev = -1.0f;
     return;
   }
@@ -1427,6 +1430,10 @@ static void draw_remain_call(const car_state *car) {
     for (int k = 0; k < 2; ++k)
       if (remain_prev > 1000.0f * (float)KM[k] && r->remain <= 1000.0f * (float)KM[k] && r->remain > 0.0f) remain_km = KM[k], remain_t0 = (long)car->lamp_tick;
   remain_prev = r->remain;
+  { /* test: MT3DX_CALLTEST=<km> shows that callout at the race's start, once and again every 10 s */
+    static long test_next;
+    if (getenv("MT3DX_CALLTEST") && remain_t0 < 0 && (long)car->lamp_tick >= test_next) remain_km = atoi(getenv("MT3DX_CALLTEST")), remain_t0 = (long)car->lamp_tick, test_next = (long)car->lamp_tick + 240;
+  }
   if (remain_t0 < 0) return;
   const int t = (int)((long)car->lamp_tick - remain_t0);
   if (t >= 2 * REMAIN_PULSE) {
@@ -1436,10 +1443,19 @@ static void draw_remain_call(const car_state *car) {
   if (t == 0) snd_effect("approach6", 1.0f); /* (the glint) */
   /* each pulse: dim at its start, bright in the middle, dim again */
   const float k = (float)(t % REMAIN_PULSE) / (float)REMAIN_PULSE, alpha = 0.15f + 0.85f * 0.5f * (1.0f - cosf(6.2831853f * k));
+  /* the word is drawn by hand: the English picture is wider than the Japanese 残り it replaces, and in its place it ran over the digit; it goes
+   * ahead of the unit, its right edge at the unit's left (the reference video's line: Remaining km under the big digit) */
+  const int frame = 240 + t % REMAIN_PULSE * 60 / REMAIN_PULSE;
   anm_swap sw[5] = { { anm_sprite(T_LAST_D2), -1 }, { anm_sprite(T_LAST_D1), -1 },
                      { anm_sprite(T_LAST_D0), uv(UV_LAST_D0 + remain_km) }, { anm_sprite(T_LAST_M), uv(UV_NOKORI_KM) },
-                     { anm_sprite(PIC_cons_p_finish_nokori), anm_sprite(PIC_cons_p_last_remaining) } };
-  anm_draw_ex(anim, 240 + t % REMAIN_PULSE * 60 / REMAIN_PULSE, alpha, 0, 0, sw, 5);
+                     { anm_sprite(PIC_cons_p_finish_nokori), -1 } };
+  anm_draw_ex(anim, frame, alpha, 0, 0, sw, 5);
+  float km[4], wd[4], wa;
+  const int word = anm_sprite(PIC_cons_p_last_remaining);
+  if (anm_sprite_rect_at(anim, frame, anm_sprite(T_LAST_M), 0, km, &wa) && anm_sprite_rect_at(anim, frame, anm_sprite(PIC_cons_p_finish_nokori), 0, wd, &wa)) {
+    float x = km[0] - anm_sprite_width(word) + REMAIN_WORD_DX, y = (km[1] + km[3]) * 0.5f - anm_sprite_height(word) * 0.5f + REMAIN_WORD_DY;
+    anm_draw_sprite(word, x, y, alpha);
+  }
 }
 
 /* ---- the route choice (clJunctionSelectConsole::setJunctionSelect, fed by CSeq::Get2DInfoJctSelect: the junction state and its two destinations): when
@@ -2385,7 +2401,8 @@ static void number(int v, int digits, float x, float y, float w, float h) {
 #define COUNT_FROM 4.0f /* CState::Prep_CountDown */
 #define COUNT_LEN 60
 #define COUNT_GO_FRAMES 59 /* GO's 60-frame timer runs down from the frame it is set */
-enum { T_KEEP_SHIFT = JID(0x1b18), KEEP_SHIFT_2 = 0x7ca };
+enum { T_KEEP_SHIFT = JID(0x1b18), KEEP_SHIFT_1 = JID(0x7c9), KEEP_SHIFT_2 = JID(0x7ca), KEEP_SHIFT_3 = JID(0x7cb), KEEP_SHIFT_4 = JID(0x7cc), KEEP_SHIFT_5 = JID(0x7cd), KEEP_SHIFT_6 = JID(0x7ce) };
+static const int KEEP_SHIFT_DIGIT[7] = { KEEP_SHIFT_2, KEEP_SHIFT_1, KEEP_SHIFT_2, KEEP_SHIFT_3, KEEP_SHIFT_4, KEEP_SHIFT_5, KEEP_SHIFT_6 };
 #define KEEP_SHIFT_X 419.0f /* the template's (190, 276) moved past the text */
 #define KEEP_SHIFT_Y 276.0f
 
@@ -2410,7 +2427,7 @@ static void draw_countdown(const car_state *car) {
     int f = (int)(t * 60.0f) % 30;
     anm_swap none = { anm_sprite(T_KEEP_SHIFT), -1 };
     anm_draw_ex(keep, f, 1, 0, 0, &none, 1);
-    if (f < 20) anm_draw_sprite(anm_sprite(KEEP_SHIFT_2), KEEP_SHIFT_X, KEEP_SHIFT_Y, 1);
+    if (f < 20) anm_draw_sprite(anm_sprite(KEEP_SHIFT_DIGIT[car->start_gear >= 1 && car->start_gear <= 6 ? car->start_gear : 0]), KEEP_SHIFT_X, KEEP_SHIFT_Y, 1);
   }
   if (n > 2) return;
   float from = COUNT_FROM - (float)n - 11.0f / 12.0f; /* when n came */

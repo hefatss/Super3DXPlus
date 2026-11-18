@@ -203,6 +203,17 @@ void snd_effect(const char *wav, float vol) {
   }
 }
 
+void snd_stop_effect(const char *wav) {
+  for (int i = S_SLIP; i < S_COUNT; ++i) {
+    const char *a = EFFECT_FILES[i - S_SLIP], *b = wav;
+    while (*a && *a == *b) a++, b++;
+    if (*a != *b) continue;
+    for (int k = 0; k < N_SHOT; ++k)
+      if (SHOTS[k].s == &SAMPLES[i]) SHOTS[k].vol = 0.0f;
+    return;
+  }
+}
+
 void snd_menu_loop(int which, int on) {
   if (which != SND_TUNING_BAR) return;
   if (on) {
@@ -319,6 +330,7 @@ void snd_update(car_state *car, const car_input *in, float dt) {
 
 void snd_quiet(void) {
   for (int i = 0; i < N_LOOP; ++i) LOOPS[i].vol = 0;
+  snd_stop_effect("approach4"), snd_stop_effect("approach6"); /* (the race's alarm and glint end with it) */
 }
 
 /* ---- audio thread ---- */

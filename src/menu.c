@@ -1342,7 +1342,7 @@ const char *menu_bgm(const menu_state *m, int racing) {
    * the select music back on the mode select; the car setting's on the dress-up menu it opens */
   if (!m->dress_free && (m->screen == MENU_ST_TUNE || m->screen == MENU_TG_GET || m->screen == MENU_TG_AERO || m->screen == MENU_TG_PART ||
       m->screen == MENU_TG_WHEEL || m->screen == MENU_TG_VINYL || m->screen == MENU_TG_WEAR || m->screen == MENU_LVUP || m->screen == MENU_SHOGO ||
-      m->screen == MENU_ST_EFF || m->screen == MENU_VS_STAR || m->screen == MENU_POEM || m->screen == MENU_BONUS))
+      m->screen == MENU_ST_EFF || m->screen == MENU_MILAGE || m->screen == MENU_VS_STAR || m->screen == MENU_POEM || m->screen == MENU_BONUS))
     return MUSIC_RESULT;
   if (m->dress_free) return MUSIC_ENTRY;
   return m->music ? MUSIC_SELECT : MUSIC_ENTRY;
@@ -2248,11 +2248,11 @@ static int option_rows(menu_state *m, orow r[12]) {
   int n = 0;
   r[n++] = (orow){ "BACK MIRROR", "THE MIRROR SHOWN IN BUMPER CAMERA", OK_SWITCH, &m->bm_on };
   r[n++] = (orow){ "TEXTURES", "HOW SHARP THE ROAD'S AND THE SCENERY'S TEXTURES STAY IN THE DISTANCE", OK_MIP, &m->mip };
-  r[n++] = (orow){ "REFLECTION", "THE CARS' PAINT AND GLASS REFLECT THE SCREEN, AS IN THE ARCADE", OK_SWITCH, &m->over_on };
+  r[n++] = (orow){ "REFLECTION", "THE CARS' PAINT AND GLASS REFLECT THE SCREEN AND THE STREET LIGHTS, AS IN THE ARCADE", OK_SWITCH, &m->over_on };
+  r[n++] = (orow){ "MILEAGE SCREEN", "THE MILEAGE TALLY AFTER A FINISHED SINGLE PLAYER GAME (OFF SKIPS IT)", OK_SWITCH, &m->milage_on };
   if (m->hq_rows) {
     r[n++] = (orow){ "HD TEXTURES", "USE THE OPTIONAL UPSCALED TEXTURES", OK_SWITCH, &m->hd_tex };
     r[n++] = (orow){ "WET ROAD", "ADDS SCREENSPACE REFLECTIONS TO THE ROAD SURFACE", OK_SWITCH, &m->wet_on };
-    r[n++] = (orow){ "PAINT REFLECTIONS", "EXTRA CLEAR COAT: STREET LIGHTS GLINT ON THE BODYWORK", OK_SWITCH, &m->paint_on };
     r[n++] = (orow){ "ANTI-ALIASING", "MSAA: SMOOTHS HARD EDGES", OK_AA, &m->aa4 };
   }
   if (m->res_row) r[n++] = (orow){ "RESOLUTION", "TAKES EFFECT AT THE NEXT START", OK_RES, &m->hires };
@@ -6338,6 +6338,10 @@ static void menu_aura_of(const menu_state *m, menu_car *c) {
 static int milage_enter(menu_state *m, int after_race) {
   int k = milage_card(m);
   if (k < 0) return 0;
+  if (!m->milage_on) { /* (skipped in the options: what was driven is counted in all the same) */
+    for (int i = 0; i < m->n_own; ++i) m->own[i].odo0 = m->own[i].odo;
+    return 0;
+  }
   const menu_own *o = &m->own[k];
   go(m, MENU_MILAGE);
   m->milage_card = k;
@@ -7249,7 +7253,7 @@ void menu_init(menu_state *m) {
   m->zone = 0;
   m->zones = 1;
   menu_garage_reset(m);
-  m->gyro = 0, m->gyro_sens = 5, m->over_on = 1, m->sharp_on = 0, m->ao_on = 0, m->bm_on = 1, m->readout_on = 0, m->fps_on = 0, m->phys_on = 0, m->filter_on = 1, m->filter_smooth = 10, m->filter_counter = 5, m->btn_steer = 10;
+  m->gyro = 0, m->gyro_sens = 5, m->over_on = 1, m->milage_on = 1, m->sharp_on = 0, m->ao_on = 0, m->bm_on = 1, m->readout_on = 0, m->fps_on = 0, m->phys_on = 0, m->filter_on = 1, m->filter_smooth = 10, m->filter_counter = 5, m->btn_steer = 10;
   for (int g = 0; g < 3; ++g) m->key_k[g] = 100, m->key_dx[g] = m->key_dy[g] = 0;
   m->poem = -1;
   for (int i = 0; i < 6; ++i) m->vol[i] = 10; /* (the volume mixer, full, but the overall level at half) */

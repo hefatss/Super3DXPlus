@@ -974,7 +974,7 @@ static int options_peek(int k, int def) {
  * next menu frame); the wet road's strength is the race's (G.rp.wet) */
 static void hq_apply(void) {
   if (!G.hq_on) return;
-  int bloom = G.menu.bloom_on, ssao = G.menu.ssao_on, env = (G.menu.paint_on ? 1 : 0) | (G.menu.wet_on ? 2 : 0);
+  int bloom = G.menu.bloom_on, ssao = G.menu.ssao_on, env = (G.menu.over_on ? 1 : 0) | (G.menu.wet_on ? 2 : 0);
   if (ssao && !G.hq_ssao_made) render_ssao(1.0f), G.hq_ssao_made = 1;
   if (bloom != G.hq_bloom || ssao != G.hq_ssao || env != G.hq_env) {
     render_hq_options(bloom, ssao, env & 1, env >> 1);
@@ -1034,6 +1034,8 @@ static int options_load(void) {
   int eb[2]; /* (the engine and turbo balance, the very last line: tenths of 200%) */
   if (n >= 3 && fscanf(f, " balance %d %d", &eb[0], &eb[1]) == 2)
     for (int i = 0; i < 2; ++i) G.menu.vol[4 + i] = eb[i] < 0 ? 0 : eb[i] > 10 ? 10 : eb[i];
+  int ml = 1; /* (the mileage tally on or skipped, the very last line) */
+  if (n >= 3 && fscanf(f, " milage %d", &ml) == 1) G.menu.milage_on = ml != 0;
   fclose(f);
   if (n < 3) return 0;
   G.menu.hires = hires != 0;
@@ -1050,8 +1052,8 @@ static int options_load(void) {
 }
 
 static void options_save(void) {
-  static int last[45] = { -1 };
-  int now[45] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
+  static int last[46] = { -1 };
+  int now[46] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
                   G.menu.bm_on, G.menu.hd_tex, G.menu.bloom_on, G.menu.ssao_on, G.menu.wet_on, G.menu.paint_on,
                   G.menu.aa4, G.menu.hires };
   for (int g = 0; g < 3; ++g)
@@ -1064,6 +1066,7 @@ static void options_save(void) {
   now[33] = G.menu.phys_on;
   now[34] = G.menu.filter_on, now[35] = G.menu.filter_smooth, now[36] = G.menu.filter_counter, now[37] = G.menu.rum[0], now[38] = G.menu.rum[1], now[39] = G.menu.rum[2], now[40] = G.menu.rum[3], now[41] = G.menu.fullscreen, now[42] = G.menu.btn_steer;
   now[43] = G.menu.vol[4], now[44] = G.menu.vol[5];
+  now[45] = G.menu.milage_on;
   if (G.options_global && !memcmp(now, last, sizeof now)) return;
   char path[1100];
   snprintf(path, sizeof path, "%s/option", G.save_dir);
@@ -1085,6 +1088,7 @@ static void options_save(void) {
   fprintf(f, "window %d\n", now[41]);
   fprintf(f, "btnsteer %d\n", now[42]);
   fprintf(f, "balance %d %d\n", now[43], now[44]);
+  fprintf(f, "milage %d\n", now[45]);
   fclose(f);
   memcpy(last, now, sizeof last);
   G.options_global = 1;
@@ -2895,6 +2899,7 @@ static void vinyl_off(wpk_scene *s, int i, uint32_t old) {
 /* the car select's 3D cars, with the arcade's menu camera */
 static void eye_in(const mat4 *m, const float *p, float *out);
 
+#define AURA_DIR (-1.0f) /* the sign the veins run up the rings (v up the column) */
 static void menu_draw3d(void *ctx) {
   const menu_scene *s = ctx;
   scene_mask_bodyparts(s);
@@ -3013,7 +3018,7 @@ static void menu_draw3d(void *ctx) {
       memcpy(model.m, s->cars[i].model, sizeof model.m);
       float eye[3];
       eye_in(&model, s->eye, eye);
-      const float t = (float)(now_ms() * 0.001);
+      const double t = (double)now_ms() * 0.001; /* (a double: a float of the uptime in seconds steps by 60 ms after a day, a choppy scroll) */
       rp.object_visible = G.aura_visible;
       rp.n_objects = 24;
       render_begin(&rp);
@@ -3022,10 +3027,10 @@ static void menu_draw3d(void *ctx) {
       for (int l = 0; l <= lv && l < 5; ++l) {
         memset(G.aura_visible, 0, sizeof G.aura_visible);
         G.aura_visible[col * 5 + l] = 1;
-        rp.uv_shift[0] = fmodf(t * (0.15f + 0.05f * (float)l), 1.0f);
+        rp.uv_shift[1] = AURA_DIR * (float)fmod(t * (0.35 + 0.1 * (double)l), 1.0); /* (up the column: u runs round the car, v up it) */
         wpk_draw(&G.aura, &avp, &model, eye, WPK_BLEND, &rp);
       }
-      rp.uv_shift[0] = 0;
+      rp.uv_shift[1] = 0;
       glDepthMask(GL_TRUE);
       rp.object_visible = NULL;
       rp.n_objects = 0;

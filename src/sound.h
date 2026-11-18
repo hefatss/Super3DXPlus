@@ -37,6 +37,8 @@ void snd_menu(int which);
  * (the one-shot table's: 1 the front end's usual): the story movies' shows' sounds, the dress-up
  * part worn's parts_equip and tuning, the class-up's levelup */
 void snd_effect(const char *wav, float vol);
+/* Silences a one-shot of that file that is still sounding (the race's alarm and glint at the goal). */
+void snd_stop_effect(const char *wav);
 /* A looped front-end sound (SND_TUNING_BAR) on from its start, or off. */
 void snd_menu_loop(int which, int on);
 /* Silence the car (engine, tyres, wall) when the race is left. */
