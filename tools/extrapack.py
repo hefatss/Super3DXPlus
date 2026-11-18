@@ -217,7 +217,7 @@ EXTRA_NAMED = ["menu_p_card_8_sound_1_1", "menu_p_card_8_sound_2_1", "menu_p_car
                "menu_p_card_3_menu_1", "menu_p_card_3_menu_2", "menu_p_card_3_menu_3", "menu_p_card_3_menu_4", "menu_p_card_3_menu_5",
                "menu_p_card_4_lv_gold", "menu_p_card_4_lv_none", "menu_p_card_4_lv_bronze", "menu_p_card_4_lv_silver", "menu_p_card_2_chara_xxx_00",
                "menu_p_card_2_chara_waku", "menu_p_card_2_chara_hatena", "menu_p_card_2_clear_kai", "menu_p_card_2_clear", "menu_p_card_2_clear_shu",
-               "menu_p_card_2_clear_wa", "menu_p_card_2_chara_ramp_12", "menu_p_card_2_chara_ramp_14"] + ["menu_p_milage_bg", "menu_p_milage_title_bar", "menu_p_milage_km", "menu_p_milage_comma"] + ["menu_p_milage_%d" % k for k in range(10)] + ["menu_p_card_2_st%02d" % k for k in range(1, 100)] + ["menu_p_card_2_st%d" % k for k in range(100, 111)] + [
+               "menu_p_card_2_clear_wa", "menu_p_card_2_chara_ramp_12", "menu_p_card_2_chara_ramp_14"] + ["menu_p_milage_bg", "menu_p_milage_title_bar", "menu_p_milage_km", "menu_p_milage_comma"] + ["cons_p_last_remaining"] + ["menu_p_milage_%d" % k for k in range(10)] + ["menu_p_card_2_st%02d" % k for k in range(1, 100)] + ["menu_p_card_2_st%d" % k for k in range(100, 111)] + [
     "menu_p_card_2_chara_ramp_" + k for k in ("01A", "02A", "03A", "04A", "05A", "06A", "07A", "08A", "09A", "10A", "11A", "13A", "13B", "13c")] + ["menu_p_card_4_lv%02d" % k for k in range(1, 11)] + ["menu_p_card_4_stage%02d" % k for k in range(1, 16)]
 # the arcade's own fonts as ASCII glyphs (src/menu.c EXF): id EXF_BASE + 100 * font + (char - 32)
 EXF_BASE, EXF_FONTS = 120000, (1, 2, 5)
@@ -239,6 +239,19 @@ def menu_bin_ids(path):
     return ids
 
 
+def strip_red_edge(im):
+    """some of the English pictures (cons_p_last_remaining, cons_p_finish_hasire...) have a 1 px solid red frame round them, an edge marker the arcade's
+    own drawing leaves out: without it the picture is not boxed in red"""
+    w, h = im.size
+    if w < 4 or h < 4:
+        return im
+    px = im.load()
+    edge = [px[x, 0] for x in range(w)] + [px[x, h - 1] for x in range(w)] + [px[0, y] for y in range(h)] + [px[w - 1, y] for y in range(h)]
+    if all(p == (255, 0, 0, 255) for p in edge):
+        return im.crop((1, 1, w - 1, h - 1))
+    return im
+
+
 def arcade_sprite(mp, elf, names, root, sid):
     """a sprite as menupack.py packs it (its table size), or None"""
     name = names.get(sid, "")
@@ -248,10 +261,12 @@ def arcade_sprite(mp, elf, names, root, sid):
         im = Image.open(f"{root}/{name}").convert("RGBA")
     except OSError:
         return None
+    orig = im.size
+    im = strip_red_edge(im)
     if sid in mp.ON_BLACK:
         im = mp.unblend_black(im)
     size = tuple(round(v) for v in struct.unpack_from("<2f", elf.d, elf.off(mp.TABLE_VA + 44 * sid + 16)))
-    if size != im.size and min(size) > 0:
+    if size != im.size and min(size) > 0 and not (size == orig and im.size != orig):  # (the table counts the red frame in: the picture inside it is the picture)
         im = im.resize(size, Image.LANCZOS)
     return im
 

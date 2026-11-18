@@ -182,7 +182,7 @@ typedef struct {
                     * 4 the 10-in-a-row's (menu_finish_ten), 0 the time attack's */
   int finish_streak; /* the episodes won in a row, with this win (the WIN result's "N WINS" from 2 on) */
   /* the mileage tally at the end of a session (MENU_MILAGE, menu_layout_milage): the card, the km it drove this time and its total before, the frames since it began */
-  int milage_card, milage_t;
+  int milage_card, milage_t, milage_race; /* milage_race: it came after a single player race (back to the menus after it), not from the title */
   long milage_this, milage_total0;
   /* on to the next race: how the race fades out (src/storymovie.h's STORYRACE_FADE: 1 black,
    * 2 white, 0 none), and so the screen while the next one loads and what it fades in from

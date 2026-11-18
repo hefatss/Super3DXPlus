@@ -239,6 +239,7 @@ static struct {
   int start_ready; /* as load_news.start */
   int pre_wait;    /* frames the race's title page has waited for the loading */
   int pre_frames;  /* and has been up (perf.log) */
+  int goal_hold, goal_held; /* a story race's goal: the ticks the game has been held for the rival's last line (0 not held); the hold is over */
   int count_shown; /* the start's countdown as the console last showed it (app_frame) */
   /* the loading (load_unit), by the menu frames or by a thread of its own (app_loader) */
   pthread_mutex_t load_mx;
@@ -4821,7 +4822,8 @@ void app_frame(float dt) {
     if (r == MENU_RESUME) G.paused = 0, G.hud.pause_pressed = 0;
   }
   /* the race's end, FINISH or TIME UP over the race running on, then white: the menus */
-  if (G.menu.finish && menu_finish_update(&G.menu, dt) == MENU_LEAVE) {
+  /* (a story race's goal holds the finish's count while the rival's last line is up: goal_hold below) */
+  if (G.menu.finish && !G.goal_hold && menu_finish_update(&G.menu, dt) == MENU_LEAVE) {
     snd_quiet();
     hud_init(&G.hud, G.hud.screen_w, G.hud.screen_h);
     G.in_menu = 1;
@@ -4905,6 +4907,23 @@ void app_frame(float dt) {
     }
   }
   steps = vs_pace(steps);
+  /* A story race's goal (issue 11, the reference video's 351 s): the screen negated and the game held while the rival's last line is said (the win's or the
+   * loss's, with its face), the cut-in's own steps run on; then the picture is as it was and the goal camera plays on to the result. */
+  {
+    const int goal = G.rival >= 0 && G.menu.game == MENU_GAME_STORY && G.menu.finish && G.menu.finish_goal &&
+                     (G.menu.finish_story == 1 || G.menu.finish_story == 2) && G.car.race.state == CAR_RACE_GOAL;
+    if (!goal) G.goal_hold = G.goal_held = 0;
+    else if (!G.goal_held) {
+      if (!G.goal_hold) G.goal_hold = 1;
+      for (int i = 0; i < steps; ++i) {
+        car_cutin_update();
+        hud_story_cut_step();
+        ++G.goal_hold;
+      }
+      steps = 0;
+      if ((G.goal_hold > 60 && !hud_story_cut_busy()) || G.goal_hold > 480) G.goal_hold = 0, G.goal_held = 1;
+    }
+  }
   /* A shift is a press, and on a display faster than 60 Hz (the AYN Thor's 120) a frame in 2 runs no arcade step: the press hud_input took from the
    * keys went with that frame. It waits for the next step instead (not through a pause, which runs none). */
   static int pend_up, pend_down;
@@ -5298,9 +5317,7 @@ void app_frame(float dt) {
   } else if (c->race.state == CAR_RACE_RUN) hud_draw(&G.hud, c, &in, G.fps);
   else menu_finish_warm(G.n_ten ? 3 : G.vs_race || (G.rival >= 0 && G.menu.game == MENU_GAME_STORY) ? 2 : c->race.state == CAR_RACE_GOAL);
   /* a story race's goal (issue 11): the 1.5 s before the result, the screen negated with the win's or the loss's line and its face */
-  if (G.rival >= 0 && G.menu.game == MENU_GAME_STORY && G.menu.finish && G.menu.finish <= G.menu.finish_wait && G.menu.finish_goal &&
-      (G.menu.finish_story == 1 || G.menu.finish_story == 2) && c->race.state == CAR_RACE_GOAL)
-    hud_story_goal(&G.hud);
+  if (G.goal_hold) hud_story_goal(&G.hud);
   menu_finish_draw(&G.menu);
   if (!movie && G.movie_in > 0) hud_fade(&G.hud, fade_grey(G.movie_fade), (float)G.movie_in / MOVIE_FADE);
   if (G.period_in > 0) hud_fade(&G.hud, fade_grey(G.period_fade), (float)G.period_in / MOVIE_FADE);

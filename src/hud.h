@@ -146,6 +146,8 @@ void hud_story_cut_step(void);
 void hud_negate(const hud_state *h);
 /* a story race's goal, the 1.5 s before the result: the screen negated and the rival's line (the win's or the loss's) with its face drawn over the road, as the arcade has it */
 void hud_story_goal(const hud_state *h);
+/* a story line is up or going (the cut-in has a face or text on the screen) */
+int hud_story_cut_busy(void);
 /* clGraphics' clFader (draw 0x852b118) in white over the whole screen, alpha 0..1 */
 void hud_white(const hud_state *h, float alpha);
 /* the same in grey (0 black, 1 white) */

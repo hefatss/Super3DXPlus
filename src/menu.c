@@ -4873,6 +4873,22 @@ void menu_vs_closed(menu_state *m, const char *note) {
 /* The race left with the screen white (the pause menu's NO) or black (its end): back on the
  * time zone and BGM select (a story race: the game mode select), out of the white like the car select from the title, or out of
  * the black as from the course select */
+static int milage_enter(menu_state *m, int after_race);
+
+/* the menus after a race: the 10-in-a-row back to the game mode select too, the time attack's to its course select */
+static void back_to_modes(menu_state *m, int white) {
+  int game = m->game != MENU_GAME_TA;
+  go(m, game ? MENU_GAME : MENU_COURSE); /* (the time attack: its course select, the screen before the time zone) */
+  m->t = white ? FADE : 0; /* white: no fade in from black */
+  m->sel = game ? game_slot(m->game) : m->course;
+  if (!game) m->course_pos = m->sel <= 3 ? m->sel : m->sel >= 9 ? m->sel - 6 : 3;
+  m->slide = m->card_t = 0;
+  m->bars = 1;
+  m->music = 1;
+  m->flash = white ? FLASH_LEN : 0;
+  m->tap = m->key = m->key_held = m->back = m->leaving = 0;
+}
+
 static void back_from_race(menu_state *m, int white) {
   /* a story race goes back to the game mode select; one whose select runs a second race on
    * (menu_finish_story's next) to that race's title */
@@ -4937,17 +4953,10 @@ static void back_from_race(menu_state *m, int white) {
   m->ending = 0;
   /* an aero set won: the dress-up screens, out of the black */
   if (!white && tg_due(m)) return;
-  /* the 10-in-a-row back to the game mode select too */
-  int game = m->game != MENU_GAME_TA;
-  go(m, game ? MENU_GAME : MENU_COURSE); /* (the time attack: its course select, the screen before the time zone) */
-  m->t = white ? FADE : 0; /* white: no fade in from black */
-  m->sel = game ? game_slot(m->game) : m->course;
-  if (!game) m->course_pos = m->sel <= 3 ? m->sel : m->sel >= 9 ? m->sel - 6 : 3;
-  m->slide = m->card_t = 0;
-  m->bars = 1;
-  m->music = 1;
-  m->flash = white ? FLASH_LEN : 0;
-  m->tap = m->key = m->key_held = m->back = m->leaving = 0;
+  /* the end of a single player game (the arcade: the title screens, then the mileage tally, then Continue?): the tally, once the screens of the race are
+   * through, not when the race was backed out of (white) */
+  if (!white && milage_enter(m, 1)) return;
+  back_to_modes(m, white);
 }
 
 int menu_pause_update(menu_state *m, float dt) {
@@ -6289,8 +6298,13 @@ static int milage_card(const menu_state *m) {
 }
 
 static void milage_to_title(menu_state *m) {
-  for (int k = 0; k < m->n_own; ++k) m->own[k].odo0 = m->own[k].odo; /* (the next session counts from here) */
+  for (int k = 0; k < m->n_own; ++k) m->own[k].odo0 = m->own[k].odo; /* (the next game counts from here) */
   m->leaving = 0;
+  if (m->milage_race) { /* (after a race: on to the menus the race was going back to) */
+    m->milage_race = 0;
+    back_to_modes(m, 0);
+    return;
+  }
   go(m, MENU_TITLE);
   m->flash = FLASH_LEN;
 }
@@ -6305,7 +6319,7 @@ static long milage_moved(const menu_state *m, int t) {
 }
 
 /* the tally in place of the way to the title, when a card drove a km this time */
-static int milage_enter(menu_state *m) {
+static int milage_enter(menu_state *m, int after_race) {
   int k = milage_card(m);
   if (k < 0) return 0;
   const menu_own *o = &m->own[k];
@@ -6314,6 +6328,7 @@ static int milage_enter(menu_state *m) {
   m->milage_this = (long)((o->odo - o->odo0) / 1000.0);
   m->milage_total0 = (long)(o->odo0 / 1000.0);
   m->milage_t = 0;
+  m->milage_race = after_race;
   m->bars = 0;
   m->tap = m->key = m->key_held = m->back = m->leaving = 0;
   return 1;
@@ -11510,10 +11525,8 @@ int menu_update(menu_state *m, float dt) {
       if (m->leaving) {
         /* the session ends: its mileage tally first when a card drove a km this time, then out of the white, the attract loop again from its title screen */
         m->leaving = 0;
-        if (!milage_enter(m)) {
-          go(m, MENU_TITLE);
-          m->flash = FLASH_LEN;
-        }
+        go(m, MENU_TITLE);
+        m->flash = FLASH_LEN;
       } else if (m->screen == MENU_SAVE && m->save_pick_new) {
         /* a NEW GAME asks the player's name first */
         name_enter(m);

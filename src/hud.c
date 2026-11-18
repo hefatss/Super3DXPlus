@@ -764,6 +764,7 @@ void hud_time_extend(float total) { extend_at = total; }
  * what the arcade's says then, "Refusing challengers" (setNoJoinNo(1)). Flush with the
  * screen's right edge like the arcade's. ---- */
 static float rec_time, rec_yours; /* s; 0 = none */
+static int vs_n; /* (the versus' other machines: set below, and here only to leave the pill out of a versus) */
 
 void hud_set_records(float record, float yours) {
   rec_time = record;
@@ -820,7 +821,7 @@ static void draw_records(int times) {
     draw_record(SPR_REC_TIME, 15, 29, rec_time);
     draw_record(SPR_REC_YOUR, 55, 69, rec_yours);
   }
-  blit(SPR_BUYIN, rx(536), ty(130) - PILL_UP);
+  if (!vs_n) blit(SPR_BUYIN, rx(536), ty(130) - PILL_UP); /* ("Refusing challengers" is the single player's: not in a versus, where the others are in the race) */
 }
 
 /* ---- the route map (clMiniMap): data/minimap/SkNavi.igb from above, turned with the car,
@@ -1406,8 +1407,9 @@ static void draw_vs_last(const car_state *car, int story) {
 
 /* ---- the distance callouts (cons_g_last_nokori, issue 11): "Remaining 5 km" and "Remaining 3 km" in the middle of the screen as the distance to the goal comes down through
  * them (the newer builds show them; the animation is the last stretch's own digits with the unit swapped in: the UV cells 121.. the digit, 132 km;
- * its word is the picture cons_p_finish_nokori itself). It plays its one-digit block, frames 240 to 299, once, by the sim's 60 Hz ticks. ---- */
-enum { UV_NOKORI_KM = 132 };
+  * its word: the picture cons_p_finish_nokori, 残り, where the English build has cons_p_last_remaining). It plays its one-digit block (frames 240 to 299, the digit's colour
+ * pulse) over two fades in and out, 54 ticks each, with a glint (approach6) as it comes, by the sim's 60 Hz ticks (the reference video's 5 km and 3 km). ---- */
+enum { UV_NOKORI_KM = 132, REMAIN_PULSE = 54 };
 static long remain_t0 = -1;
 static int remain_km;
 static float remain_prev = -1.0f;
@@ -1427,13 +1429,17 @@ static void draw_remain_call(const car_state *car) {
   remain_prev = r->remain;
   if (remain_t0 < 0) return;
   const int t = (int)((long)car->lamp_tick - remain_t0);
-  if (t >= 60) {
+  if (t >= 2 * REMAIN_PULSE) {
     remain_t0 = -1;
     return;
   }
-  anm_swap sw[4] = { { anm_sprite(T_LAST_D2), -1 }, { anm_sprite(T_LAST_D1), -1 },
-                     { anm_sprite(T_LAST_D0), uv(UV_LAST_D0 + remain_km) }, { anm_sprite(T_LAST_M), uv(UV_NOKORI_KM) } };
-  anm_draw_ex(anim, 240 + t, 1, 0, 0, sw, 4);
+  if (t == 0) snd_effect("approach6", 1.0f); /* (the glint) */
+  /* each pulse: dim at its start, bright in the middle, dim again */
+  const float k = (float)(t % REMAIN_PULSE) / (float)REMAIN_PULSE, alpha = 0.15f + 0.85f * 0.5f * (1.0f - cosf(6.2831853f * k));
+  anm_swap sw[5] = { { anm_sprite(T_LAST_D2), -1 }, { anm_sprite(T_LAST_D1), -1 },
+                     { anm_sprite(T_LAST_D0), uv(UV_LAST_D0 + remain_km) }, { anm_sprite(T_LAST_M), uv(UV_NOKORI_KM) },
+                     { anm_sprite(PIC_cons_p_finish_nokori), anm_sprite(PIC_cons_p_last_remaining) } };
+  anm_draw_ex(anim, 240 + t % REMAIN_PULSE * 60 / REMAIN_PULSE, alpha, 0, 0, sw, 5);
 }
 
 /* ---- the route choice (clJunctionSelectConsole::setJunctionSelect, fed by CSeq::Get2DInfoJctSelect: the junction state and its two destinations): when
@@ -3230,4 +3236,10 @@ static void hud_wide_layout(float edge, float key_k) {
 void hud_story_goal(const hud_state *h) {
   hud_negate(h);
   draw_story_cut();
+}
+
+int hud_story_cut_busy(void) {
+  for (int i = 0; i < 3; ++i)
+    if (scut.cut[i].state) return 1;
+  return 0;
 }
