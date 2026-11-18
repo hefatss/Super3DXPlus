@@ -4880,10 +4880,17 @@ void app_frame(float dt) {
     }
   }
   steps = vs_pace(steps);
+  /* A shift is a press, and on a display faster than 60 Hz (the AYN Thor's 120) a frame in 2 runs no arcade step: the press hud_input took from the
+   * keys went with that frame. It waits for the next step instead (not through a pause, which runs none). */
+  static int pend_up, pend_down;
+  if (G.paused) pend_up = pend_down = 0;
+  pend_up |= in.shift_up, pend_down |= in.shift_down;
+  in.shift_up = pend_up, in.shift_down = pend_down;
   for (int i = 0; i < steps; ++i) {
     if (i == steps - 1) G.car_prev = G.car; /* (the state the render interpolates from: a step ago) */
     if (G.ten_white && ++G.ten_white > 1 + TEN_WHITE_HOLD + TEN_WHITE_FADE) G.ten_white = 0;
     car_update(&G.car, &in);
+    pend_up = pend_down = 0;
     haptic_set_levels(G.menu.rum);
     haptic_step(&G.car, G.car.race.play_state == 2 && G.car.race.countdown <= 0.0f && app_racing());
     ffb_step(&G.car, G.car.race.play_state == 2 && G.car.race.countdown <= 0.0f && app_racing() && !G.paused);
