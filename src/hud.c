@@ -2633,13 +2633,14 @@ void hud_draw(const hud_state *h, const car_state *car, const car_input *in, flo
   /* small fps counter, top-left: at the screen's own edge (a phone's 16:9 has its view key,
    * bigger, where the layout's 16 is) */
   color(1, 1, 1, 0.6f);
-  if (STYLE == HUD_STYLE_ARCADE && h->fps_on) number((int)(fps + 0.5f), 2, 512.0f - 16.0f, 8.0f, 12, 20); /* (top middle: clear of the consoles) */
+  /* (3 digits: a 120 Hz display's 118 showed as "18"; the 2-digit values keep their places, the third digit comes in to their left) */
+  if (STYLE == HUD_STYLE_ARCADE && h->fps_on) number((int)(fps + 0.5f), 3, 512.0f - 16.0f - 12 * 1.35f, 8.0f, 12, 20); /* (top middle: clear of the consoles) */
   if (STYLE != HUD_STYLE_ARCADE) {
     /* and clear of the top keys wherever the KEY LAYOUT put them: under them if they cover it */
     rect top = key(group_rect(KEY_TOP, h->gyro), KEY_TOP);
     float fx = 16 - EDGE, fy = 16;
     if (fx < top.x + top.w + 4 && fx + 2 * 12 * 1.35f > top.x - 4 && fy < top.y + top.h + 4) fy = top.y + top.h + 8;
-    number((int)(fps + 0.5f), 2, fx, fy, 12, 20);
+    number((int)(fps + 0.5f), 3, fx - 12 * 1.35f, fy, 12, 20);
   }
 
   if (tex_prog) {
