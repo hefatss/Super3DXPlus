@@ -1130,8 +1130,10 @@ static void garage_load(void) {
     if (sscanf(line, "own %d %lld %lf %199[^\n]", &a, &born, &odo, label) == 4) {
       int mk, c, sl;
       if (car_by_label(label, &mk, &c, &sl) && menu_own_find(&G.menu, mk, c, (sl - c) / MENU_GARAGE_CARS) < 0 && G.menu.n_own < MENU_OWN_MAX &&
-          a >= 0 && a < CARDB_CARS[mk][c].ncolors)
+          a >= 0 && a < CARDB_CARS[mk][c].ncolors) {
         G.menu.own[G.menu.n_own++] = (menu_own){ (signed char)mk, (signed char)c, (signed char)a, born, odo, (signed char)((sl - c) / MENU_GARAGE_CARS), { -2, -1, -1, -1, -1 } };
+        G.menu.own[G.menu.n_own - 1].odo0 = odo; /* (this time's distance counts from here) */
+      }
       continue;
     }
     long long used;
@@ -5055,6 +5057,7 @@ void app_frame(float dt) {
         /* getStorySuccessiveVictoryCount: the episodes won in a row */
         short *streak = &G.menu.st_streak_car[G.menu.maker][menu_slot(&G.menu)];
         *streak = cleared ? (short)(*streak < 30000 ? *streak + 1 : *streak) : 0;
+        G.menu.finish_streak = *streak; /* (the WIN result's "N WINS") */
         title_race_over(TITLE_STORY, cleared, race, G.race_course, 0);
         garage_save();
         G.menu.garage_changed = 0;

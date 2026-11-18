@@ -4769,8 +4769,12 @@ static void draw_card(const menu_state *m, int clock, float fade, int bars, void
       text[j++] = digits[i];
     }
     text[j] = 0;
+    const float x0 = x;
     x = card_glyphs(CARD_GLYPH2, "-,", 8.0f, text, x, y, fade);
     anm_draw_sprite(anm_sprite(CARD_TEXT + C_KM), x + 8.0f, y, fade);
+    /* and what was driven since the game started (the newer builds' "this time's distance", issue 11) under it */
+    snprintf(text, sizeof text, "THIS TIME %ld km", (long)((o->odo - o->odo0) / 1000.0));
+    ex_text(2, text, x0, y + 26.0f, fade);
   }
   anm_swap title = { anm_sprite(T_TOPBAR_MES), anm_sprite(110100 + 9) >= 0 ? anm_sprite(110100 + 9) : anm_sprite(S_CARD_TOPBAR) }; /* ("(1/7)") */
   draw_topbar(bars, fade, &title);
@@ -5440,6 +5444,17 @@ static void draw_st_result(const menu_state *m, int t) {
       sw[k].to = d[k] == 11 ? -1 : anm_sprite(d[k] < 10 ? ADV_DIGIT + d[k] : d[k] == 10 ? T_ADV_MINUS : T_ADV_COMMA);
     }
     anm_draw_ex(ID.st_adv, 0, 1, 0, 0, sw, 7);
+    /* the win streak (getStorySuccessiveVictoryCount), "111 WINS" under the advantage as the arcade's WIN result has it, from the second in a row */
+    if (m->finish_story == 1 && m->finish_streak >= 2) {
+      float r[4], al, y = 200.0f;
+      if (anm_sprite_rect_at(ID.st_adv, 0, anm_sprite(T_ADV_D4), 0, r, &al)) y = r[3] + 12.0f;
+      char s[16];
+      snprintf(s, sizeof s, "%d", m->finish_streak > 99999 ? 99999 : m->finish_streak);
+      const float a = t - ST_RES_ADV >= 20 ? 1.0f : (float)(t - ST_RES_ADV + 1) / 20.0f;
+      float x = 320.0f - 0.5f * (ex_width(5, s) + 10.0f + ex_width(5, "WINS"));
+      x = ex_text(5, s, x, y, a);
+      ex_text(5, "WINS", x + 10.0f, y, a);
+    }
   }
   if (!m->st_show || t < ST_RES_GAUGE) return;
   anm_draw(ID.st_waku, 0, 1);

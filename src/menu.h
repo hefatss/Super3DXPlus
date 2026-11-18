@@ -68,6 +68,7 @@ typedef struct {
   signed char dup; /* which card of its model (0 the first: a save may hold MENU_DUPS of one model) */
   short name[5];   /* the car's own name (namedb.h's characters, -1 past its end), asked for when the car is registered */
   long long used;  /* when it was last driven (time_t): the car select lists the cars by it, last used first */
+  double odo0;     /* the distance (m) when the game started or the card was made: THIS TIME on the card is odo - odo0 (not saved) */
 } menu_own;
 #define MENU_GARAGE_CARS 12  /* CARDB_MAX_CARS */
 /* The per-car arrays below are indexed by a card's slot: its model's car plus MENU_GARAGE_CARS times its dup (menu_slot, menu_own_slot) */
@@ -179,6 +180,7 @@ typedef struct {
   int pre_quiet; /* MENU_PRE between a story select's races: no title page (back_from_race) */
   int finish_story; /* a story race's end (menu_finish_story): 1 WIN, 2 LOSE, 3 on to the next race,
                     * 4 the 10-in-a-row's (menu_finish_ten), 0 the time attack's */
+  int finish_streak; /* the episodes won in a row, with this win (the WIN result's "N WINS" from 2 on) */
   /* on to the next race: how the race fades out (src/storymovie.h's STORYRACE_FADE: 1 black,
    * 2 white, 0 none), and so the screen while the next one loads and what it fades in from
    * (pre_fade; the app takes it at the start) */

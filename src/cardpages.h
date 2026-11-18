@@ -209,6 +209,7 @@ static const int CP_RAMP_OF[111] = {
 static void cp_story(const menu_state *m, float fade) {
   cp_car c = cp_of(m);
   int div = m->st_div_car[c.mk][c.sl], bits = m->st_bits_car[c.mk][c.sl], loop = div / 5, dv = div % 5;
+  if (getenv("MT3DX_CP_STREAK")) ((menu_state *)m)->st_streak_car[c.mk][c.sl] = (short)atoi(getenv("MT3DX_CP_STREAK")); /* test: this win streak */
   if (getenv("MT3DX_CP_BITS")) bits = atoi(getenv("MT3DX_CP_BITS")), div = getenv("MT3DX_CP_DIV") ? atoi(getenv("MT3DX_CP_DIV")) : 0, loop = div / 5, dv = div % 5; /* test: these episodes cleared */
   cp_anim(CP.waku[CP_STORY], 0, fade, NULL, 0);
   for (int k = 0; k < 20; ++k) {
@@ -229,12 +230,14 @@ static void cp_story(const menu_state *m, float fade) {
   }
   int cleared = 20 * div + __builtin_popcount((unsigned)bits & 0xfffff);
   char t[24];
-  cp_sprite(JID(0x1518), 380.0f, 96.0f, fade); /* "Your current rounds." */
+  /* the two boxes: the win streak (getStorySuccessiveVictoryCount: the episodes won in a row, the story's own count since the arcade's later
+   * layout, issue 11; the rounds this page told before are not shown) and the chapters cleared */
+  ex_text(2, "Win streak", 380.0f, 99.0f, fade);
   cp_sprite(JID(0x0abd), 380.0f, 115.0f, fade); /* "Chapters cleared" */
-  cp_sprite(JID(0x151a), 566.0f, 96.0f, fade); /* "round" */
+  ex_text(2, "wins", 566.0f, 99.0f, fade);
   cp_sprite(JID(0x11ef), 566.0f, 115.0f, fade); /* "Chapter" */
-  snprintf(t, sizeof t, "%d", loop + 1);
-  ex_text_right(2, t, 568.0f, 102.0f, fade);
+  snprintf(t, sizeof t, "%d", m->st_streak_car[c.mk][c.sl]);
+  ex_text_right(2, t, 562.0f, 100.0f, fade);
   snprintf(t, sizeof t, "%d", cleared > 10000 ? 10000 : cleared);
   ex_text_right(2, t, 568.0f, 121.0f, fade);
 }
