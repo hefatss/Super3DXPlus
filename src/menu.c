@@ -10222,19 +10222,20 @@ static void area_marks(const menu_state *m, int clock, float dx, float fade) {
 }
 
 static void draw_vs_area(const menu_state *m, int clock, int bars, float screen_w, float screen_h,
-                         void (*mini3d)(void *, float)) {
+                         int (*mini3d)(void *, float)) {
   float fade = m->t < FADE ? (float)(m->t + 1) / FADE : 1.0f;
   draw_back(ID.bg, clock % 600, fade);
   anm_draw(ID.line, 0, fade);
   draw_bg_logo(chosen_car(m, m->car), clock % 240, fade);
-  /* mapChange: the city's picture for Nagoya, Osaka, Fukuoka, Hakone; Tokyo's the miniature */
+  /* the cities' picture (Japan's map with the city's name) for Nagoya, Osaka, Fukuoka, Hakone, and the route's 3D miniature for every city, over it
+   * (the arcade's mapChange shows only the picture for those four, the newer builds both: issue 12) */
   static const int CITY_MAP[4] = { JID(0x1832), JID(0x15b9), JID(0x19a4), JID(0x1831) };
   int k = m->vs.item, city = k >= 5 && k <= 8;
-  if (mini3d && k >= 1 && k <= 4) mini3d((void *)m, fade);
   if (city && m->vs.item_from < 0 && ID.course_map >= 0) {
     anm_swap map = { anm_sprite(JID(0x15b9)), anm_sprite(CITY_MAP[k - 5]) };
     anm_draw_ex(ID.course_map, 0, fade, 0, 0, &map, 1);
   }
+  if (mini3d && k >= 1) mini3d((void *)m, fade);
   anm_swap sw[AREA_NSWAP];
   int n = 0;
   for (int i = 0; i < 8; ++i) sw[n++] = (anm_swap){ anm_sprite(AREA_PICTURE[i][0]), anm_sprite(AREA_PICTURE[i][1]) };
@@ -11678,7 +11679,7 @@ static void draw_vs_discs(const menu_state *m, int clock, float fade) {
 }
 
 void menu_draw(const menu_state *m, float screen_w, float screen_h, void (*draw3d)(void *), void *ctx,
-               void (*mini3d)(void *, float)) {
+               int (*mini3d)(void *, float)) {
   photo_bg = 0;
   switch (m->screen) { /* (the key glyphs of the bottom bar: the arcade's, where its screens have them) */
   case MENU_HAVE: case MENU_MAKER: case MENU_SETTING: case MENU_GAME: case MENU_MODE: case MENU_ST_LEVEL: case MENU_ST_RIVAL:
@@ -12070,11 +12071,12 @@ void menu_draw(const menu_state *m, float screen_w, float screen_h, void (*draw3
      * attack's 10 and 11 too; flag 0x3c / 0x38 clear) clMiniatureCourse::update, the 3D map */
     static const int CITY_MAP[4] = { JID(0x1832), JID(0x15b9), JID(0x19a4), JID(0x1831) };
     int city = m->sel >= 6 && m->sel <= 9;
-    if (mini3d && !city) mini3d((void *)m, fade);
+    /* (the cities' picture, Japan's map with the city's name, and over it their miniature too, as the newer builds show them: issue 12) */
     if (city && m->from < 0 && ID.course_map >= 0) {
       anm_swap map = { anm_sprite(JID(0x15b9)), anm_sprite(CITY_MAP[m->sel - 6]) };
       anm_draw_ex(ID.course_map, 0, fade, 0, 0, &map, 1);
     }
+    if (mini3d) mini3d((void *)m, fade);
     if (m->screen == MENU_TEN_COURSE) anm_draw_ex(ID.or_course, f, fade, course_dx(m), 0, NULL, 0);
     else anm_draw_ex(ID.course, f, fade, course_dx(m), 0, km_swaps, km_nswaps);
   }

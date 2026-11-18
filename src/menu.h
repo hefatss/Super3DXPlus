@@ -767,9 +767,9 @@ int menu_update(menu_state *m, float dt);
 int menu_scene3d(const menu_state *m, menu_scene *s);
 /* Draws the screen; draw3d (if set) is called where the 3D cars go, between the
  * backgrounds and the overlays. */
-/* mini3d (if set): the course selects' 3D map of Tokyo (clMiniatureCourse) over the
+/* mini3d (if set): the course selects' 3D map of the route (clMiniatureCourse) over the
  * background, given the menu and the screen's fade (1 none, 0 black) */
 void menu_draw(const menu_state *m, float screen_w, float screen_h, void (*draw3d)(void *), void *ctx,
-               void (*mini3d)(void *, float));
+               int (*mini3d)(void *, float));
 
 #endif

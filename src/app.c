@@ -3025,15 +3025,15 @@ static int mini_ticks(void) {
   return n;
 }
 
-static void mini_draw(void *ctx, float fade) {
+static int mini_draw(void *ctx, float fade) {
   const menu_state *m = ctx;
   const int ticks = mini_ticks();
   int card = m->sel;
   int ten = m->screen == MENU_TEN_COURSE, vs = m->screen == MENU_VS_AREA;
   if (vs) card = m->vs.item;
-  if (!G.mini.n_batch || card < 0 || card >= (vs ? MINI_VS_CARDS : ten ? MINI_TEN_CARDS : MINI_TA_CARDS)) return;
+  if (!G.mini.n_batch || card < 0 || card >= (vs ? MINI_VS_CARDS : ten ? MINI_TEN_CARDS : MINI_TA_CARDS)) return 0;
   const mini_course *mc = vs ? &MINI_VS[card] : ten ? &MINI_TEN[card] : &MINI_TA[card];
-  if (!mc->on) return;
+  if (!mc->on) return 0;
   if (mc != G.mini_shown) {
     if (G.mini_shown) {
       memcpy(G.mini_from[0], G.mini_shown->eye, sizeof G.mini_from[0]);
@@ -3053,7 +3053,7 @@ static void mini_draw(void *ctx, float fade) {
     at[i] = G.mini_from[1][i] + (mc->at[i] - G.mini_from[1][i]) * k;
   }
   float aspect = (float)G.fb_w / (float)G.fb_h;
-  float fovy = 2.0f * atanf(tanf(0.5236f * 0.5f) / (4.0f / 3.0f));
+  float fovy = 2.0f * atanf(tanf(mc->fov * 0.5f) / (4.0f / 3.0f)); /* (the map's own angle across: 30 degrees for Tokyo's and Fukuoka's, 73 for the others') */
   mat4 proj = mat4_perspective(fovy, aspect, 5.0f, 20000.0f);
   const float up[3] = { 0, 1, 0 };
   mat4 view = mat4_look_at(eye, at, up);
@@ -3065,18 +3065,19 @@ static void mini_draw(void *ctx, float fade) {
   glClear(GL_DEPTH_BUFFER_BIT);
   render_begin(&rp);
   memset(G.mini_visible, 0, sizeof G.mini_visible);
-  G.mini_visible[MINI_MAP] = G.mini_visible[MINI_COURSE] = G.mini_visible[mc->macula] = 1;
+  G.mini_visible[mc->map] = G.mini_visible[mc->course] = G.mini_visible[mc->macula] = 1;
   for (int pass = 0; pass < WPK_PASSES; ++pass) {
     render_blend_pass(pass == WPK_BLEND);
     wpk_draw(&G.mini, &vp, &ident, eye, pass, &rp);
   }
   G.mini_frame += ticks;
-  int f = G.mini_frame % MINI_FRAMES;
+  /* (the gradation's and the run light's sequences each loop in their own length: 3 s for Tokyo's, 3.5 to 10 s for the other cities') */
+  const int fg = G.mini_frame % mc->gframes, fr = G.mini_frame % mc->rframes;
   glDisable(GL_DEPTH_TEST);
   render_blend_pass(1);
   memset(G.mini_visible, 0, sizeof G.mini_visible);
   G.mini_visible[mc->gradation] = 1;
-  rp.uv_shift[0] = mc->uv[f];
+  rp.uv_shift[0] = mc->uv[fg];
   wpk_draw(&G.mini, &vp, &ident, eye, WPK_BLEND, &rp);
   rp.uv_shift[0] = 0;
   G.mini_visible[mc->gradation] = 0;
@@ -3087,13 +3088,14 @@ static void mini_draw(void *ctx, float fade) {
     bb.m[i] = view.m[4 * i];
     bb.m[4 + i] = view.m[4 * i + 1];
     bb.m[8 + i] = view.m[4 * i + 2];
-    bb.m[12 + i] = mc->run[f][i];
+    bb.m[12 + i] = mc->run[fr][i];
   }
   float eye_bb[3];
   eye_in(&bb, eye, eye_bb);
   wpk_draw(&G.mini, &vp, &bb, eye_bb, WPK_BLEND, &rp);
   render_blend_pass(0);
   glEnable(GL_DEPTH_TEST);
+  return 1;
 }
 
 /* frames the race's title page waits for the loading at most (it should never take this

@@ -1,21 +1,24 @@
-"""The course selects' 3D miniature of Tokyo (clMiniatureCourse), for data/minicourse.wpk
+"""The course selects' 3D miniature of the route (clMiniatureCourse), for data/minicourse.wpk
 and src/minicourse.h.
 
 clThread_6_2_CourseSelect::run (the time attack's) and clThread_7_1_CourseSelect::run (the
 10-in-a-row's) hand clMiniatureCourse::init a table of stMiniatureCourseData (0x68 bytes a
 course: the time attack's 12 at A(0x93e3bc0), the 10-in-a-row's 10 at A(0x940ccc0), the versus area
-vote's 9 at A(0x93fa400) (clseqJoCourseSelectThread::run; card 0 omakase): +0 the map,
+vote's 9 at A(0x93fa400) (clseqJoCourseSelectThread::run; card 0 omakase)): +0 the map,
 +4 the course (the roads and their shadow), +8 the course's marks (macula), +0xc its
 gradation (an LED strip along the route whose texture runs: an igTransformSequence on the
-texture matrix, u 0 -> 1 in 3 s), +0x10 the run light (a glow riding the route: a
-sequence of the node's place, 181 keys in 3 s), +0x14 the camera set, +0x18 / +0x1c the
-names of the camera's and its aim's transforms there (data/menu3d/course/ + the name).
-Only Tokyo's ("sk") cards show it (mapChange: the other cities show a picture instead).
+texture matrix, u 0 -> 1 over the sequence), +0x10 the run light (a glow riding the route: a
+sequence of the node's place), +0x14 the camera set, +0x18 / +0x1c the names of the camera's and
+its aim's transforms there (data/menu3d/course/ + the name).
+The decompiled mapChange shows a flat city picture for Nagoya, Osaka, Fukuoka and Hakone, but the
+data has the full miniature for them too (their own map and course, cameras and sequences of 3.5 to
+10 s) and the newer builds of the project show it (issue 12): every city's card gets it. A card with
+no miniature of its own (the versus' omakase, whose five names are all one file) stays `{ 0 }`.
 
 The pack: one object per IGB (out.names), the run light's quad in its own frame (the
 renderer places it at the sequence's key, facing the camera). The header: by card, the
-objects of its marks, gradation and run light, its camera and aim, and the sequences
-sampled at 60 Hz.
+objects of its map, roads, marks, gradation and run light, its camera and aim, and the
+sequences sampled at 60 Hz (each its own length: Tokyo's 3 s, the others' 3.5 to 10 s, looped).
 
 usage: pack_mini.py <arcade root (has main, data/)> out.wpk out.h
 """
@@ -33,9 +36,21 @@ import scene
 from igb import IGB
 
 TABLES = (("TA", A(0x93e3bc0), 12), ("TEN", A(0x940ccc0), 10), ("VS", A(0x93fa400), 9))
-TOKYO_MAP = "sk/cs_sk_map.igb"  # the 3D Tokyo: the cards on it (TA 0-5, 10, 11; ten 0-5) get the miniature,
-# the others (Nagoya, Osaka, Fukuoka, Hakone) mapChange's 2D city picture
-FRAMES = 180  # 3 s at 60 Hz
+
+
+FOV_TIGHT = 0.5235988  # 0x3f060a92: 30 degrees across
+FOV_WIDE = 1.2740903   # 0x3fa31564: 73 degrees across
+
+
+def fov_of(row):
+    """clMiniatureCourse::update's projection, by the kind init gives the map from its name's first two letters (sk 1, nk 2, ok 3, fo 4, hn 5):
+    30 degrees across for kinds 1 and 4 (Tokyo's, Fukuoka's), 73 for the others (Nagoya's, Osaka's, Hakone's); 5 to 20000, 4:3"""
+    return FOV_TIGHT if row[0][:2] in ("sk", "fo") else FOV_WIDE
+
+
+def has_miniature(r):
+    """a row of the table with a miniature of its own (the versus' omakase card names one file five times)"""
+    return all(r[:5]) and len(set(r[:5])) > 1 and bool(r[5]) and bool(r[6]) and bool(r[7])
 
 
 class Elf:
@@ -84,9 +99,14 @@ def sequences(path):
     return out
 
 
-def sample(t, v):
-    """v at 60 Hz over 3 s (looped: the keys run 0..3 s), linear between keys"""
-    s = np.arange(FRAMES) / 60.0
+def frames_of(t):
+    """the sequence's length in 60 Hz frames (Tokyo's run 3 s = 180, the other cities' 3.5 to 10 s); it loops"""
+    return max(1, int(round(float(t[-1]) * 60.0)))
+
+
+def sample(t, v, n):
+    """v at 60 Hz over the sequence's n frames (looped: the keys run 0..n/60 s), linear between keys"""
+    s = np.arange(n) / 60.0
     return np.stack([np.interp(s, t, v[:, k]) for k in range(v.shape[1])], axis=1)
 
 
@@ -106,12 +126,12 @@ def main():
     files = []  # object k: an IGB under data/menu3d/course
     for _, rows in tables:
         for r in rows:
-            if r[0] != TOKYO_MAP:
+            if not has_miniature(r):
                 continue
             for f in (r[0], r[1], r[2], r[3], r[4]):
                 if f not in files:
                     files.append(f)
-    runlights = {r[4] for _, rows in tables for r in rows if r[0] == TOKYO_MAP}
+    runlights = {r[4] for _, rows in tables for r in rows if has_miniature(r)}
 
     real_meshes = scene.meshes
 
@@ -139,15 +159,27 @@ def main():
     with open(out_wpk.rsplit(".", 1)[0] + ".names", "w") as fp:
         fp.write("".join(f + "\n" for f in files))
 
+    # each card's sequences (the gradation's and the run light's lengths differ between cities)
+    seqs = {}
+    for tag, rows in tables:
+        for k, r in enumerate(rows):
+            if not has_miniature(r):
+                continue
+            gra = list(sequences(os.path.join(cdir, r[3])).values())[0]
+            run = list(sequences(os.path.join(cdir, r[4])).values())[0]
+            seqs[(tag, k)] = (gra, run, frames_of(gra[0]), frames_of(run[0]))
+    max_frames = max(max(g, r) for _, _, g, r in seqs.values())
+
     with open(out_h, "w") as h:
         h.write("/* Generated by tools/stage/pack_mini.py from the arcade's main and data/menu3d/course: do not edit. */\n")
         h.write("#ifndef MINICOURSE_H\n#define MINICOURSE_H\n\n")
         h.write("/* data/minicourse.wpk's objects (data/minicourse.names) */\n")
-        h.write("enum { MINI_MAP = %d, MINI_COURSE = %d, MINI_OBJECTS = %d };\n" % (
-            files.index(tables[0][1][0][0]), files.index(tables[0][1][0][1]), len(files)))
-        h.write("#define MINI_FRAMES %d /* the sequences' 3 s at 60 Hz */\n" % FRAMES)
-        h.write("typedef struct {\n  unsigned char on;                /* a card on the 3D Tokyo (else all 0) */\n"
-                "  unsigned char macula, gradation, runlight; /* objects */\n"
+        h.write("enum { MINI_OBJECTS = %d };\n" % len(files))
+        h.write("#define MINI_FRAMES %d /* the longest sequence at 60 Hz (each card's own length is gframes / rframes) */\n" % max_frames)
+        h.write("typedef struct {\n  unsigned char on;                /* a card with a miniature (else all 0) */\n"
+                "  unsigned char map, course, macula, gradation, runlight; /* objects */\n"
+                "  unsigned short gframes, rframes; /* the gradation's and the run light's sequences in 60 Hz frames (they loop) */\n"
+                "  float fov;                       /* the projection's angle across, radians (a 4:3 view) */\n"
                 "  float eye[3], at[3];\n  float uv[MINI_FRAMES];         /* the gradation's texture u */\n"
                 "  float run[MINI_FRAMES][3];     /* the run light's place */\n} mini_course;\n\n")
         for tag, rows in tables:
@@ -157,17 +189,17 @@ def main():
             h.write("#define MINI_%s_CARDS %d\n" % (tag, len(rows)))
             h.write("static const mini_course MINI_%s[MINI_%s_CARDS] = {\n" % (tag, tag))
             for k, r in enumerate(rows):
-                if r[0] != TOKYO_MAP:
-                    h.write("  { 0 }, /* card %d: %s, the city picture */\n" % (k, r[0]))
+                if not has_miniature(r):
+                    h.write("  { 0 }, /* card %d: %s, no miniature */\n" % (k, r[0]))
                     continue
                 cams = os.path.join(cdir, r[5])
                 eye, at = camera(cams, r[6]), camera(cams, r[7])
-                gra = list(sequences(os.path.join(cdir, r[3])).values())[0]
-                run = list(sequences(os.path.join(cdir, r[4])).values())[0]
-                uv = sample(gra[0], gra[1][:, :1])[:, 0]
-                pos = sample(run[0], run[1])
-                h.write("  { 1, %d, %d, %d, /* card %d: %s %s %s */\n" % (files.index(r[2]), files.index(r[3]), files.index(r[4]), k,
-                                                            r[2], r[3], r[4]))
+                gra, run, gf, rf = seqs[(tag, k)]
+                uv = sample(gra[0], gra[1][:, :1], gf)[:, 0]
+                pos = sample(run[0], run[1], rf)
+                h.write("  { 1, %d, %d, %d, %d, %d, %d, %d, %.7ff, /* card %d: %s %s %s %s %s */\n" % (
+                    files.index(r[0]), files.index(r[1]), files.index(r[2]), files.index(r[3]), files.index(r[4]), gf, rf, fov_of(r), k,
+                    r[0], r[1], r[2], r[3], r[4]))
                 h.write("    { %.4ff, %.4ff, %.4ff }, { %.4ff, %.4ff, %.4ff }, /* %s, %s */\n" % (*eye, *at, r[6], r[7]))
                 h.write("    {" + ",".join(" %.4ff" % u for u in uv) + " },\n")
                 h.write("    {" + ",".join(" { %.3ff, %.3ff, %.3ff }" % tuple(p) for p in pos) + " } },\n")
