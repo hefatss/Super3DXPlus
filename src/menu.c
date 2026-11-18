@@ -6360,7 +6360,7 @@ static void milage_step(menu_state *m, const menu_in *in) {
     m->milage_card = 0, m->milage_this = atol(getenv("MT3DX_MILAGE")), m->milage_total0 = 5449;
   }
   const int t = ++m->milage_t, done_at = MILAGE_COUNT_AT + milage_dur(m);
-  if (t > MILAGE_COUNT_AT && t <= done_at && (t - MILAGE_COUNT_AT) % 27 == 1) snd_effect("odo_count", 1.0f); /* (the count's tick, 0.46 s each) */
+  if (t > MILAGE_COUNT_AT && t <= done_at && (t - MILAGE_COUNT_AT) % 4 == 1) snd_effect("odo_count", 0.7f); /* (the count's ticks, rapid; they overlap) */
   if (m->leaving) {
     if (++m->leaving > MILAGE_FADE) milage_to_title(m);
     return;
