@@ -907,8 +907,8 @@ int menu_scene3d(const menu_state *m, menu_scene *s) {
     s->n = 1;
     return 1;
   }
-  if (m->screen == MENU_GARAGE || m->screen == MENU_CARD) {
-    /* the turntable of the colour select, the car in its parts */
+  if (m->screen == MENU_GARAGE || m->screen == MENU_CARD || m->screen == MENU_MILAGE) {
+    /* the turntable of the colour select, the car in its parts (the mileage tally's too) */
     s->fov_x = 73.0f * DEG;
     s->eye[0] = 0, s->eye[1] = 10.0f, s->eye[2] = 50.0f;
     s->at[0] = 0, s->at[1] = 3.0f, s->at[2] = 0;
@@ -6268,6 +6268,148 @@ static void draw_bonus(const menu_state *m, int clock) {
   anm_fill(0, 0, 0, 1.0f - (a < 0 ? 0 : a));
 }
 
+/* ---- the mileage tally at the end of a session (menu_layout_milage, the arcade's card hand-back: the title's update, then this, "Continue?" and the card
+ * ejected): the car on a grey ground, its name, class and title, power, and under them "Your mileage is" (what this card drove since the game
+ * started) and "Total mileage" in big italic digits with km; the first counts down to 0 while the second counts up by it, and the screen leaves on a
+ * press once it is done or by itself. The arcade's mileage password (a string printed on the card to carry the distance to a new one) is not in the
+ * port, the saves keep the distance. ---- */
+#define MILAGE_FADE 10
+#define MILAGE_COUNT_AT 40
+#define MILAGE_HOLD 150
+enum { M_BG = JID(1557), M_KM = JID(1558), M_COMMA = JID(2823), M_BAR = JID(5584), M_DIGIT0 = JID(1224) };
+
+/* the card to show: the one in hand if it drove a km this time, else the one that drove most */
+static int milage_card(const menu_state *m) {
+  if (m->own_sel >= 0 && m->own_sel < m->n_own && m->own[m->own_sel].odo - m->own[m->own_sel].odo0 >= 1000.0) return m->own_sel;
+  int best = -1;
+  double most = 999.0;
+  for (int k = 0; k < m->n_own; ++k)
+    if (m->own[k].odo - m->own[k].odo0 > most) most = m->own[k].odo - m->own[k].odo0, best = k;
+  return best;
+}
+
+static void milage_to_title(menu_state *m) {
+  for (int k = 0; k < m->n_own; ++k) m->own[k].odo0 = m->own[k].odo; /* (the next session counts from here) */
+  m->leaving = 0;
+  go(m, MENU_TITLE);
+  m->flash = FLASH_LEN;
+}
+
+static int milage_dur(const menu_state *m) { return m->milage_this < 40 ? 40 : m->milage_this > 100 ? 100 : (int)m->milage_this; }
+
+/* the km moved from this time's to the total by frame t */
+static long milage_moved(const menu_state *m, int t) {
+  if (t <= MILAGE_COUNT_AT) return 0;
+  const int d = milage_dur(m);
+  return t - MILAGE_COUNT_AT >= d ? m->milage_this : m->milage_this * (t - MILAGE_COUNT_AT) / d;
+}
+
+/* the tally in place of the way to the title, when a card drove a km this time */
+static int milage_enter(menu_state *m) {
+  int k = milage_card(m);
+  if (k < 0) return 0;
+  const menu_own *o = &m->own[k];
+  go(m, MENU_MILAGE);
+  m->milage_card = k;
+  m->milage_this = (long)((o->odo - o->odo0) / 1000.0);
+  m->milage_total0 = (long)(o->odo0 / 1000.0);
+  m->milage_t = 0;
+  m->bars = 0;
+  m->tap = m->key = m->key_held = m->back = m->leaving = 0;
+  return 1;
+}
+
+static void milage_step(menu_state *m, const menu_in *in) {
+  m->spin -= 0.3f; /* (the car turns, as on the card) */
+  if (getenv("MT3DX_MILAGE") && m->milage_t == 0 && m->milage_this == 0) { /* test: this many km driven, the total before 5449 */
+    m->milage_card = 0, m->milage_this = atol(getenv("MT3DX_MILAGE")), m->milage_total0 = 5449;
+  }
+  const int t = ++m->milage_t, done_at = MILAGE_COUNT_AT + milage_dur(m);
+  if (m->leaving) {
+    if (++m->leaving > MILAGE_FADE) milage_to_title(m);
+    return;
+  }
+  if (t >= done_at + MILAGE_HOLD || (in->any && t > done_at)) m->leaving = 1;
+}
+
+/* a number's digits from the right edge xr at the top y, an advance of 32 px each, the comma in a 16 px cell */
+static void milage_number(long v, float xr, float y, float a) {
+  char s[24];
+  snprintf(s, sizeof s, "%ld", v < 0 ? 0 : v);
+  const int n = (int)strlen(s);
+  float x = xr;
+  for (int i = n - 1; i >= 0; --i) {
+    x -= 32.0f;
+    anm_draw_sprite(anm_sprite(M_DIGIT0 + (s[i] - '0')), x, y, a);
+    if (i && (n - i) % 3 == 0) {
+      x -= 16.0f;
+      anm_draw_sprite(anm_sprite(M_COMMA), x, y, a);
+    }
+  }
+}
+
+static void draw_milage(const menu_state *m, int clock, void (*draw3d)(void *), void *ctx) {
+  (void)clock;
+  float a = m->milage_t < MILAGE_FADE ? (float)m->milage_t / MILAGE_FADE : 1.0f;
+  if (m->leaving) a = 1.0f - (float)m->leaving / MILAGE_FADE;
+  if (a < 0) a = 0;
+  anm_fill(0, 0, 0, 1);
+  anm_draw_sprite(anm_sprite(M_BG), -192.0f, -16.0f, 1);
+  if (draw3d) draw3d(ctx); /* (the car on its turntable) */
+  anm_draw_sprite(anm_sprite(M_BAR), -192.0f, 14.0f, 1);
+  const menu_own *o = &m->own[m->milage_card >= 0 && m->milage_card < m->n_own ? m->milage_card : 0];
+  const cardb_car *c = &CARDB_CARS[o->maker][o->car];
+  float x = 12.0f;
+  const float y = 30.0f, k = 0.7f;
+  /* the name in font 5, then the class and the title, the power */
+  int slot = m->save_slot >= 1 && m->save_slot <= MENU_SAVES ? m->save_slot : 1;
+  if (m->name[0] >= 0 && anm_sprite(NAME_GLYPH5) >= 0) {
+    for (int i = 0; i < 5 && m->name[i] >= 0; ++i) {
+      const float xf[6] = { x + 28.0f * k * (float)i, y, k, 0, 0, k };
+      anm_draw_sprite_xf(anm_sprite(NAME_GLYPH5 + m->name[i]), xf, a);
+    }
+  } else {
+    const float xf[6] = { x, y, k, 0, 0, k };
+    anm_draw_sprite_xf(anm_sprite(CARD_TEXT + C_PLAYER + slot - 1), xf, a);
+  }
+  x = 136.0f;
+  {
+    int cls = m->class_car[o->maker][menu_own_slot(o)], pre = anm_sprite(CARD_CLASSP + cls);
+    int title = m->title_car[o->maker][menu_own_slot(o)] > 0 ? m->title_car[o->maker][menu_own_slot(o)] : TITLE_FIRST;
+    const unsigned short *g;
+    int n = title_glyphs(title, &g);
+    const float kt = 0.55f;
+    if (pre >= 0 && n > 0 && anm_sprite(TITLE_GLYPH5 + g[0]) >= 0) {
+      const float xf[6] = { x, y + 4.0f, kt, 0, 0, kt };
+      anm_draw_sprite_xf(pre, xf, a);
+      x += (anm_sprite_width(pre) - 32.0f + 16.0f) * kt;
+      for (int i = 0; i < n; ++i) {
+        if (!title_glyph_slash(g[i])) {
+          const float xg[6] = { x, y + 4.0f, kt, 0, 0, kt };
+          anm_draw_sprite_xf(anm_sprite(TITLE_GLYPH5 + g[i]), xg, a);
+        }
+        x += (title_glyph_half(g[i]) ? 16.0f : 28.0f) * kt;
+      }
+    }
+  }
+  {
+    int power = m->tune_full[o->maker][menu_own_slot(o)] ? m->tune_power[o->maker][menu_own_slot(o)] : m->st_power[o->maker][menu_own_slot(o)];
+    char hp[24];
+    snprintf(hp, sizeof hp, "%dHP", car_tune_hp(c->hp, power));
+    ex_text(2, hp, 560.0f - ex_width(2, hp), y + 6.0f, a);
+  }
+  /* the two rows: what was driven this time, counting down, and the total, counting up by it */
+  const long moved = milage_moved(m, m->milage_t);
+  ex_text(5, "Your mileage is", 15.0f, 76.0f, a);
+  ex_text(5, "Total mileage", 15.0f, 126.0f, a);
+  milage_number(m->milage_this - moved, 556.0f, 70.0f, a);
+  milage_number(m->milage_total0 + moved, 556.0f, 120.0f, a);
+  for (int r = 0; r < 2; ++r) {
+    anm_draw_sprite(anm_sprite(M_KM), 566.0f, 70.0f + 50.0f * (float)r, a);
+  }
+  anm_fill(0, 0, 0, 1.0f - a);
+}
+
 /* point_calc 0x85df20c, the story's branch: the share of a full gauge (1000 points, 20
  * units) the race earns, by the tune so far (T), the loop, the episode's place in it and
  * whether it was cleared before; a full gauge's surplus is lost */
@@ -11245,6 +11387,10 @@ static void step(menu_state *m) {
     poem_step(m);
     return;
   }
+  if (m->screen == MENU_MILAGE) {
+    milage_step(m, &in);
+    return;
+  }
   if (m->screen == MENU_BONUS) {
     bonus_step(m, &in);
     return;
@@ -11362,10 +11508,12 @@ int menu_update(menu_state *m, float dt) {
     step(m);
     if (was_deciding == 1 && m->deciding == 0) {
       if (m->leaving) {
-        /* out of the white, the attract loop again from its title screen */
+        /* the session ends: its mileage tally first when a card drove a km this time, then out of the white, the attract loop again from its title screen */
         m->leaving = 0;
-        go(m, MENU_TITLE);
-        m->flash = FLASH_LEN;
+        if (!milage_enter(m)) {
+          go(m, MENU_TITLE);
+          m->flash = FLASH_LEN;
+        }
       } else if (m->screen == MENU_SAVE && m->save_pick_new) {
         /* a NEW GAME asks the player's name first */
         name_enter(m);
@@ -11937,6 +12085,10 @@ void menu_draw(const menu_state *m, float screen_w, float screen_h, void (*draw3
   }
   if (m->screen == MENU_POEM) {
     draw_poem(m);
+    return;
+  }
+  if (m->screen == MENU_MILAGE) {
+    draw_milage(m, clock, draw3d, ctx);
     return;
   }
   if (m->screen == MENU_BONUS) {

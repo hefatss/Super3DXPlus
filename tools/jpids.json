@@ -1395,5 +1395,19 @@
 "8049": "menu_p_finish_result_st_get_yamashita",
 "8060": "menu_p_t_tuning_parts_wing_1_template",
 "8086": "menu_p_t_tuning_title_aeropart_template",
-"8089": "menu_p_topbar_mes_carsel_transmission_no_card"
+"8089": "menu_p_topbar_mes_carsel_transmission_no_card",
+"1557": "menu_p_milage_bg",
+"1558": "menu_p_milage_km",
+"2823": "menu_p_milage_comma",
+"5584": "menu_p_milage_title_bar",
+"1224": "menu_p_milage_0",
+"1225": "menu_p_milage_1",
+"1226": "menu_p_milage_2",
+"1227": "menu_p_milage_3",
+"1228": "menu_p_milage_4",
+"1229": "menu_p_milage_5",
+"1230": "menu_p_milage_6",
+"1231": "menu_p_milage_7",
+"1232": "menu_p_milage_8",
+"1233": "menu_p_milage_9"
 }

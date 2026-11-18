@@ -181,6 +181,9 @@ typedef struct {
   int finish_story; /* a story race's end (menu_finish_story): 1 WIN, 2 LOSE, 3 on to the next race,
                     * 4 the 10-in-a-row's (menu_finish_ten), 0 the time attack's */
   int finish_streak; /* the episodes won in a row, with this win (the WIN result's "N WINS" from 2 on) */
+  /* the mileage tally at the end of a session (MENU_MILAGE, menu_layout_milage): the card, the km it drove this time and its total before, the frames since it began */
+  int milage_card, milage_t;
+  long milage_this, milage_total0;
   /* on to the next race: how the race fades out (src/storymovie.h's STORYRACE_FADE: 1 black,
    * 2 white, 0 none), and so the screen while the next one loads and what it fades in from
    * (pre_fade; the app takes it at the start) */
@@ -521,7 +524,7 @@ enum { MENU_MOVIE, MENU_TITLE, MENU_RANKING, MENU_LOGO, MENU_PROLOGUE, MENU_STAR
        MENU_ST_LEVEL, MENU_ST_RIVAL, MENU_PRE, MENU_ST_TUNE, MENU_TEN_COURSE, MENU_TEN_LEVEL,
        MENU_TG_GET, MENU_TG_AERO, MENU_TG_PART, MENU_TG_WEAR, MENU_OPTION, MENU_SAVE, MENU_HAVE, MENU_GARAGE,
        MENU_CARD, MENU_LVUP, MENU_ST_EFF, MENU_TG_WHEEL, MENU_TG_SELECT, MENU_TG_MAKER, MENU_NAME,
-       MENU_TG_VINYL, MENU_VS, MENU_VS_SEL, MENU_VS_AREA, MENU_VS_MATCH, MENU_SHOGO, MENU_VS_STAR, MENU_INFO, MENU_LAYOUT, MENU_POEM, MENU_BONUS, MENU_CARDSET, MENU_BINDINGS, MENU_HUDOPT, MENU_VOLUME, MENU_PORTINFO, MENU_RUMBLE };
+       MENU_TG_VINYL, MENU_VS, MENU_VS_SEL, MENU_VS_AREA, MENU_VS_MATCH, MENU_SHOGO, MENU_VS_STAR, MENU_INFO, MENU_LAYOUT, MENU_POEM, MENU_BONUS, MENU_CARDSET, MENU_BINDINGS, MENU_HUDOPT, MENU_VOLUME, MENU_PORTINFO, MENU_RUMBLE, MENU_MILAGE };
 enum { MENU_GAME_STORY, MENU_GAME_TEN, MENU_GAME_TA, MENU_GAME_VS };
 
 /* The cars the car select shows in 3D this frame (the carousel, or the colour turntable),
