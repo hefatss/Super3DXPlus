@@ -144,6 +144,8 @@ void hud_story_cut_step(void);
 /* clGraphicFrame's negaposi (+0x174, neg.cg) as a 10-in-a-row rival is beaten: the 3D scene
  * drawn so far, colours inverted. */
 void hud_negate(const hud_state *h);
+/* a story race's goal, the 1.5 s before the result: the screen negated and the rival's line (the win's or the loss's) with its face drawn over the road, as the arcade has it */
+void hud_story_goal(const hud_state *h);
 /* clGraphics' clFader (draw 0x852b118) in white over the whole screen, alpha 0..1 */
 void hud_white(const hud_state *h, float alpha);
 /* the same in grey (0 black, 1 white) */

@@ -5297,6 +5297,10 @@ void app_frame(float dt) {
     if (G.movie_fade && left < MOVIE_FADE) hud_fade(&G.hud, fade_grey(G.movie_fade), 1.0f - left / MOVIE_FADE);
   } else if (c->race.state == CAR_RACE_RUN) hud_draw(&G.hud, c, &in, G.fps);
   else menu_finish_warm(G.n_ten ? 3 : G.vs_race || (G.rival >= 0 && G.menu.game == MENU_GAME_STORY) ? 2 : c->race.state == CAR_RACE_GOAL);
+  /* a story race's goal (issue 11): the 1.5 s before the result, the screen negated with the win's or the loss's line and its face */
+  if (G.rival >= 0 && G.menu.game == MENU_GAME_STORY && G.menu.finish && G.menu.finish <= G.menu.finish_wait && G.menu.finish_goal &&
+      (G.menu.finish_story == 1 || G.menu.finish_story == 2) && c->race.state == CAR_RACE_GOAL)
+    hud_story_goal(&G.hud);
   menu_finish_draw(&G.menu);
   if (!movie && G.movie_in > 0) hud_fade(&G.hud, fade_grey(G.movie_fade), (float)G.movie_in / MOVIE_FADE);
   if (G.period_in > 0) hud_fade(&G.hud, fade_grey(G.period_fade), (float)G.period_in / MOVIE_FADE);

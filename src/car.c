@@ -1513,6 +1513,10 @@ void car_update(car_state *c, const car_input *in) {
     phys_have = 1;
   }
   int gear = (int)M32(P.m + M_ENGINE + 0x3c);
+  /* a manual car while a countdown runs (the 10-in-a-row's restart after a beaten rival: the engine's gear is the rolling start's 2nd while the
+   * driver's lever, the port's own, is still where it was, 5th): the lever's gear is the one that is in once the race runs, so it is the one shown
+   * (the display dropped to 2 and jumped back at the start, issue 11) */
+  if (P.manual && c->race.countdown > 0.0f && P.lever >= 0 && P.lever != gear - 1) gear = P.lever + 1;
   if (gear != c->gear && c->gear) c->shift_event = gear > c->gear ? 1 : -1;
   c->gear = gear;
 

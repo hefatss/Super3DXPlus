@@ -1720,6 +1720,21 @@ static void draw_rival_marks(const car_state *car) {
 enum { TEN_BANNER_TEXT = 101700, T_BANNER_ROUND = JID(0x59f), T_BANNER_NAME = JID(0x5a0), T_BANNER_CAR = JID(0x1d2),
        BANNER_FRAMES = 115 };
 
+/* the 10-in-a-row's banner and cut-in pictures of the rival on the road drawn up in GL a frame at a time in the race, and kept (anm_trim frees what is not drawn for
+ * 180 frames), so the beaten rival's cut-in and the next one's banner do not first-draw (a PNG's decode and upload each) in the middle of the freeze: that was
+ * the slowdown on a phone (issue 11) */
+static int tenw[24], tenw_n, tenw_i;
+static void ten_warm_add(int sprite) {
+  if (sprite < 0) return;
+  for (int i = 0; i < tenw_n; ++i)
+    if (tenw[i] == sprite) return;
+  if (tenw_n < 24) tenw[tenw_n++] = sprite;
+}
+static void ten_warm_step(void) {
+  for (int i = 0; i < tenw_n; ++i) anm_warm_sprite(tenw[i], i == tenw_i);
+  if (tenw_i < tenw_n) ++tenw_i;
+}
+
 static void draw_ten_banner(const car_state *car) {
   static int anim = -2;
   if (anim == -2) anim = anm_find("menu_layout_or_demo_0705b");
@@ -1733,6 +1748,16 @@ static void draw_ten_banner(const car_state *car) {
     banner_chara = extend ? banner_round : TEN_CHARA[lv][banner_round > 9 ? 9 : banner_round];
     banner_frame = 0;
     banner_on = 0;
+    tenw_n = tenw_i = 0; /* (the new rival's pictures replace the last one's) */
+  }
+  ten_warm_add(anm_sprite(TEN_BANNER_TEXT + banner_round));
+  ten_warm_add(anm_sprite(TEN_BANNER_TEXT + 32 + banner_chara));
+  ten_warm_add(anm_sprite(TEN_FACE[banner_chara][2]));
+  if (banner_round < max) { /* (and the next rival's banner, which shows right after the beaten one's cut-in) */
+    const int nr = banner_round + 1, nc = extend ? nr : TEN_CHARA[ten_level > 9 ? 9 : ten_level][nr > 9 ? 9 : nr];
+    ten_warm_add(anm_sprite(TEN_BANNER_TEXT + nr));
+    ten_warm_add(anm_sprite(TEN_BANNER_TEXT + 32 + nc));
+    ten_warm_add(anm_sprite(TEN_FACE[nc][2]));
   }
   if (r->ten_sw_name) banner_on = 1;
   if (banner_frame >= BANNER_FRAMES) return;
@@ -1821,6 +1846,11 @@ static void cut_end(void) {
 /* One arcade frame of it (clRaceThread::yield, or the beaten one's still frames) */
 static void cut_step(const car_race *r) {
   int serial = r->cut_char >= 0 && r->cut_char < 32 ? CUT_SERIAL[r->cut_char] : -1;
+  if (serial >= 0) { /* (this rival's start lines and its loss line: texts and faces) */
+    for (int k = 0; k < 2; ++k) ten_warm_add(anm_sprite(CUT_TEXT + 2 * serial + k)), ten_warm_add(anm_sprite(CUT_FACE + 2 * serial + k));
+    ten_warm_add(anm_sprite(CUT_TEXT + CUT_LOSE + serial));
+    ten_warm_add(anm_sprite(CUT_FACE + CUT_LOSE + serial));
+  }
   if (r->cut_start && !cut.said_start) {
     if (serial >= 0) cut_speak(2 * serial + (cut.timer & 1));
     cut.said_start = 1;
@@ -1857,6 +1887,7 @@ void hud_ten_cutin(const car_race *r, int frames) {
 
 static void draw_cutin(void) {
   if (ten_level < 0) return;
+  ten_warm_step();
   if (cut.flash.anim >= 0) anm_draw_ex(cut.flash.anim, cut_frame(&cut.flash), 1, 0, CUT_Y, NULL, 0);
   if (cut.serifu.anim < 0) return;
   int f = cut_frame(&cut.serifu), text = anm_sprite(CUT_TEXT + cut.line);
@@ -3194,4 +3225,9 @@ static void hud_wide_layout(float edge, float key_k) {
     PAUSE.x = 236, RESET.x = 296, CAMERA.x = 116, TRANS.x = 176;
     CLUSTER_Y = 286, INFO_Y = 505, PILL_UP = MAP_UP = 0;
   }
+}
+
+void hud_story_goal(const hud_state *h) {
+  hud_negate(h);
+  draw_story_cut();
 }
