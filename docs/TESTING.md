@@ -11,6 +11,7 @@ Set as environment variables (they do nothing unset, and silence the sound unles
 | `MT3DX_GOTO=n` | after START go straight to menu screen n (the `MENU_` enum in `src/menu.h`; 36 is the versus' lobby) |
 | `MT3DX_SHOT=s,s` `MT3DX_SHOT_DIR=dir` | the frame as `shot_<s>.ppm` at those seconds |
 | `MT3DX_AUTOQUIT=s` | leave after s seconds |
+| `MT3DX_CALLTEST=km` | show the "Remaining km" callout (3 or 5) at a race's start and again every 4 s |
 | `MT3DX_AUTODRIVE=1` `MT3DX_AUTODRIVE_KMH=n` | hold the accelerator in a race (below n km/h) |
 | `WMMT_PILOT=1` `WMMT_PILOT_BIAS=x` `WMMT_PILOT_LOG=1` | the arcade's own pilot steers (with `MT3DX_AUTODRIVE`); BIAS adds a steady steering offset (about -0.05 or 0.05) to hug a lane and clear the centre dividers; LOG prints the pilot's numbers every 2 s |
 | Android: `test.env` in the save folder | `KEY=VALUE` lines set as environment variables at start (`MT3DX_AUTODRIVE`, `MT3DX_AUTODRIVE_KMH`, `WMMT_PILOT*`); the menus are driven with `adb shell input gamepad keyevent`. Delete the file after a test: it makes the car drive itself |

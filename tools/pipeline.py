@@ -313,7 +313,7 @@ def prepare_sound(ctx):
     race = ("slip wall crash1 crash4 valb1 valb2 valb3 gyap phone2 turbin1 turbin2 turbin3 air1 backfire1 backfire2").split()
     system = ("cursor select cancel gamestart ti_count ti_count2 turning6 finish1 turning turning2 turning3 start321 start_go finish2 cutin2 "
               "tuning_bar result2 result_pass approach2 approach3 turning3_cutin door_open door_close engine_start rybal_intro parts_equip tuning "
-              "levelup jack_up jack_down tuning1 tuning2 parts_comp rank win win_bigstar approach5 approach4 approach6 turning5").split()
+              "levelup jack_up jack_down tuning1 tuning2 parts_comp rank win win_bigstar approach5 approach4 approach6 turning5 odo_count").split()
     for f in race:
         shutil.copyfile(os.path.join(src, "race_se", f + ".wav"), os.path.join(out, f + ".wav"))
     for f in system:

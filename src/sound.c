@@ -46,7 +46,7 @@ enum {
   S_PARTS_EQUIP, S_TUNING, S_LEVELUP, S_JACK_UP, S_JACK_DOWN, S_TUNING1, S_TUNING2, S_PARTS_COMP, S_RANK, S_WIN, S_WIN_BIGSTAR,
   /* the turbo's other two turbines (S_TURBIN by the power tune) and the backfire's two */
   S_TURBIN2, S_TURBIN3, S_BACKFIRE1, S_BACKFIRE2,
-  S_APPROACH4, S_APPROACH5, S_TURNING5, S_APPROACH6, /* approach6: the distance callouts' glint (5 km, 3 km remaining);  approach4: the versus' last stretch alarm; the 10 out run's beep as the rival's line is near (system_se/approach5, 0.3 s) */
+  S_APPROACH4, S_APPROACH5, S_TURNING5, S_APPROACH6, S_ODO_COUNT, /* approach6: the distance callouts' glint (5 km, 3 km remaining);  approach4: the versus' last stretch alarm; the 10 out run's beep as the rival's line is near (system_se/approach5, 0.3 s) */
   S_COUNT
 };
 /* every car type's engine and muffler loops (S_ENG0..S_MUF3 point into these) */
@@ -62,7 +62,7 @@ static const char *EFFECT_FILES[S_COUNT - S_SLIP] = { "slip", "wall", "turbin1",
                                                       "engine_start", "phone2", "rybal_intro", "parts_equip",
                                                       "tuning", "levelup", "jack_up", "jack_down", "tuning1",
                                                       "tuning2", "parts_comp", "rank", "win", "win_bigstar",
-                                                      "turbin2", "turbin3", "backfire1", "backfire2", "approach4", "approach5", "turning5", "approach6" };
+                                                      "turbin2", "turbin3", "backfire1", "backfire2", "approach4", "approach5", "turning5", "approach6", "odo_count" };
 static sample SAMPLES[S_COUNT];
 
 /* Loop voices map 1:1 to the first ten samples; one-shots get their own pool. */
@@ -330,7 +330,7 @@ void snd_update(car_state *car, const car_input *in, float dt) {
 
 void snd_quiet(void) {
   for (int i = 0; i < N_LOOP; ++i) LOOPS[i].vol = 0;
-  snd_stop_effect("approach4"), snd_stop_effect("approach6"); /* (the race's alarm and glint end with it) */
+
 }
 
 /* ---- audio thread ---- */

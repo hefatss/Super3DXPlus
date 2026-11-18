@@ -5016,7 +5016,7 @@ void app_frame(float dt) {
       if (now != was) fprintf(stderr, "ten car sound %s (countdown %.2f, beaten %d)\n", now ? "off" : "on", (double)cr->countdown, cr->ten_beaten), was = now;
     }
   } else {
-    snd_car_mute(G.vs_race && G.menu.finish); /* (a versus: the car goes quiet as the race ends) */
+    snd_car_mute(G.menu.finish || (!G.in_menu && G.car.race.play_state == 2 && G.car.race.countdown <= 0.0f && G.car.race.remain <= 0.0f)); /* (the car goes quiet as the line is crossed, as in the 10-in-a-row; the effects go on) */
   }
   /* the time attack console's sounds: TIME EXTEND at a checkpoint, the last seconds' ticks */
   car_race *race = &G.car.race;

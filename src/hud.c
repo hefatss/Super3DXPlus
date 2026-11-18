@@ -1372,7 +1372,6 @@ static void draw_vs_last(const car_state *car, int story) {
   }
   const car_race *r = &car->race;
   if (a_keep < 0 || a_caught < 0 || a_digits < 0 || r->play_state != 2 || r->countdown > 0.0f) {
-    if (last_t0 >= 0) snd_stop_effect("approach4");
     last_t0 = -1, last_alarm = -1;
     return;
   }
@@ -1389,13 +1388,12 @@ static void draw_vs_last(const car_state *car, int story) {
   }
   if (lead < 0.0f) lead = 0.0f;
   if (lead > (float)LAST_METRES || r->remain <= 0.0f) {
-    if (last_t0 >= 0) snd_stop_effect("approach4"); /* (over the line: the alarm is off) */
     last_t0 = -1, last_alarm = -1;
     return;
   }
   if (last_t0 < 0) last_t0 = (long)car->lamp_tick;
   const int t = (int)((long)car->lamp_tick - last_t0);
-  if (t / 300 != last_alarm) last_alarm = t / 300, snd_menu(SND_ALARM); /* (approach4 runs 4.9 s: again as it ends) */
+  if (t / 60 != last_alarm) last_alarm = t / 60, snd_menu(SND_TIME_COUNT); /* (ti_count each second) */
   const int m = (int)lead;
   anm_swap sw[2] = { { anm_sprite(first ? T_LAST_SAIGO : T_LAST_TONIKAKU), uv(first ? UV_LAST_CAUGHT : UV_LAST_KEEP) },
                      { anm_sprite(first ? T_LAST_MADE : T_LAST_RIVAL), uv(first ? UV_LAST_TILL : UV_LAST_UNTIL) } };
@@ -1411,7 +1409,7 @@ static void draw_vs_last(const car_state *car, int story) {
  * them (the newer builds show them; the animation is the last stretch's own digits with the unit swapped in: the UV cells 121.. the digit, 132 km;
   * its word: the picture cons_p_finish_nokori, 残り, where the English build has cons_p_last_remaining). It plays its one-digit block (frames 240 to 299, the digit's colour
  * pulse) over two fades in and out, 54 ticks each, with a glint (approach6) as it comes, by the sim's 60 Hz ticks (the reference video's 5 km and 3 km). ---- */
-enum { UV_NOKORI_KM = 132, REMAIN_PULSE = 54, REMAIN_WORD_DX = -10, REMAIN_WORD_DY = 0 };
+enum { UV_NOKORI_KM = 132, REMAIN_PULSE = 54, REMAIN_WORD_DX = 14, REMAIN_WORD_DY = -4 };
 static long remain_t0 = -1;
 static int remain_km;
 static float remain_prev = -1.0f;
@@ -1421,7 +1419,6 @@ static void draw_remain_call(const car_state *car) {
   if (anim == -2) anim = anm_find("cons_g_last_nokori");
   const car_race *r = &car->race;
   if (anim < 0 || r->play_state != 2 || r->countdown > 0.0f) {
-    if (remain_t0 >= 0) snd_stop_effect("approach6");
     remain_t0 = -1, remain_prev = -1.0f;
     return;
   }
@@ -1440,7 +1437,7 @@ static void draw_remain_call(const car_state *car) {
     remain_t0 = -1;
     return;
   }
-  if (t == 0) snd_effect("approach6", 1.0f); /* (the glint) */
+  if (t == 0) snd_menu(SND_TIME_EXTEND); /* (turning6) */
   /* each pulse: dim at its start, bright in the middle, dim again */
   const float k = (float)(t % REMAIN_PULSE) / (float)REMAIN_PULSE, alpha = 0.15f + 0.85f * 0.5f * (1.0f - cosf(6.2831853f * k));
   /* the word is drawn by hand: the English picture is wider than the Japanese 残り it replaces, and in its place it ran over the digit; it goes
@@ -1450,10 +1447,11 @@ static void draw_remain_call(const car_state *car) {
                      { anm_sprite(T_LAST_D0), uv(UV_LAST_D0 + remain_km) }, { anm_sprite(T_LAST_M), uv(UV_NOKORI_KM) },
                      { anm_sprite(PIC_cons_p_finish_nokori), -1 } };
   anm_draw_ex(anim, frame, alpha, 0, 0, sw, 5);
-  float km[4], wd[4], wa;
+  float d0[4], wa;
   const int word = anm_sprite(PIC_cons_p_last_remaining);
-  if (anm_sprite_rect_at(anim, frame, anm_sprite(T_LAST_M), 0, km, &wa) && anm_sprite_rect_at(anim, frame, anm_sprite(PIC_cons_p_finish_nokori), 0, wd, &wa)) {
-    float x = km[0] - anm_sprite_width(word) + REMAIN_WORD_DX, y = (km[1] + km[3]) * 0.5f - anm_sprite_height(word) * 0.5f + REMAIN_WORD_DY;
+  if (anm_sprite_rect_at(anim, frame, anm_sprite(T_LAST_D0), 0, d0, &wa)) { /* (small, on the digit's lower left, its end under the digit's start) */
+    float x = d0[0] - anm_sprite_width(word) + REMAIN_WORD_DX, y = d0[3] - anm_sprite_height(word) + REMAIN_WORD_DY;
+    if (getenv("MT3DX_LOG")) fprintf(stderr, "callout: digit %.0f %.0f %.0f %.0f word %.0fx%.0f at %.0f %.0f\n", d0[0], d0[1], d0[2], d0[3], anm_sprite_width(word), anm_sprite_height(word), x, y);
     anm_draw_sprite(word, x, y, alpha);
   }
 }
