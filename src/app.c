@@ -4282,9 +4282,10 @@ static void menu_frame(float dt, double frame_start) {
       G.vs_race = vs ? G.n_rival : 0;
       story_cut_start();
       if (vs) G.menu.vs.state = MENU_VS_RACE;
-      fprintf(stderr, "race: course %d (%s), %s colour %d, power %d handling %d, %s\n", G.menu.course,
+      fprintf(stderr, "race: course %d (%s), %s colour %d, power %d handling %d, %s (slot %d, full tune %d, story tune %d/%d)\n", G.menu.course,
               G.menu.official ? "official machine" : "personal best", CARDB_CARS[G.menu.maker][G.menu.car].label,
-              G.menu.color, power, handling, G.menu.manual ? "MT" : "AT");
+              G.menu.color, power, handling, G.menu.manual ? "MT" : "AT", menu_slot(&G.menu), G.menu.tune_full[G.menu.maker][menu_slot(&G.menu)],
+              G.menu.st_power[G.menu.maker][menu_slot(&G.menu)], G.menu.st_handling[G.menu.maker][menu_slot(&G.menu)]);
       G.in_menu = 0;
       load_pause(); /* the race loads nothing more (its own first draws aside) */
       /* the car models stay for the car select after the race (unless iOS warned), only the

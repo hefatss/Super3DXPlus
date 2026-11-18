@@ -264,10 +264,19 @@ void snd_update(car_state *car, const car_input *in, float dt) {
 
   E.rpm += (car->rpm - E.rpm) * fminf(1.0f, dt * 20.0f);
   float accel = E.accel / 5000.0f;
+  /* The bands end at the highest rpm the arcade's engine reaches (r3, 9000 for most sets) and are silent past it: the port's physics goes past it (the limiter's
+   * bounce, a car held in gear, the automatic gearbox's late shifts), and the whole engine went quiet there (the Evo VIII, on the automatic too). The level
+   * is held at the top band's last value instead; the pitch goes on rising. */
+  float top_e = 0, top_m = 0;
   for (int i = 0; i < 4; ++i) {
-    LOOPS[S_ENG0 + i].vol = bal_engine * 0.30f * band_gain(&engine_set->engine_bands[i], E.rpm) * (0.55f + 0.45f * accel);
+    if (engine_set->engine_bands[i].r0 < 10000 && engine_set->engine_bands[i].r3 > top_e) top_e = (float)engine_set->engine_bands[i].r3;
+    if (engine_set->muffler_bands[i].r0 < 10000 && engine_set->muffler_bands[i].r3 > top_m) top_m = (float)engine_set->muffler_bands[i].r3;
+  }
+  const float rpm_e = top_e > 0 ? fminf(E.rpm, top_e) : E.rpm, rpm_m = top_m > 0 ? fminf(E.rpm, top_m) : E.rpm;
+  for (int i = 0; i < 4; ++i) {
+    LOOPS[S_ENG0 + i].vol = bal_engine * 0.30f * band_gain(&engine_set->engine_bands[i], rpm_e) * (0.55f + 0.45f * accel);
     LOOPS[S_ENG0 + i].pitch = band_pitch(&engine_set->engine_bands[i], E.rpm);
-    LOOPS[S_MUF0 + i].vol = bal_engine * 0.34f * band_gain(&engine_set->muffler_bands[i], E.rpm) * accel;
+    LOOPS[S_MUF0 + i].vol = bal_engine * 0.34f * band_gain(&engine_set->muffler_bands[i], rpm_m) * accel;
     LOOPS[S_MUF0 + i].pitch = band_pitch(&engine_set->muffler_bands[i], E.rpm);
   }
 
