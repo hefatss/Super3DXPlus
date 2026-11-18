@@ -1323,6 +1323,7 @@ static void first_frame(car_state *c) {
   c->gear = P.manual ? 2 : 1;
   { /* the gear SetFirstPos chose (CTransmission::SetFirst): the one the countdown asks for */
     int g = (int)M32(P.m + M_ENGINE + 0x3c);
+    if (P.spec.gears <= 5 && g > 2) g = 2; /* (3rd is out of the power band of a 4 or 5 speed car: the rolling start asks for 2nd) */
     c->start_gear = g >= 1 && g <= 6 ? g : 2;
     if (P.manual) P.lever = c->start_gear - 1 > P.top_lever ? P.top_lever : c->start_gear - 1; /* (the lever starts where the engine's gear is: no shift of its own at the start) */
     if (getenv("MT3DX_LOG")) fprintf(stderr, "start gear: engine says %d, shown %d\n", g, c->start_gear);

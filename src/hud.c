@@ -1422,7 +1422,7 @@ static void draw_vs_last(const car_state *car, int story) {
  * them (the newer builds show them; the animation is the last stretch's own digits with the unit swapped in: the UV cells 121.. the digit, 132 km;
   * its word: the picture cons_p_finish_nokori, 残り, where the English build has cons_p_last_remaining). It plays its one-digit block (frames 240 to 299, the digit's colour
  * pulse) over two fades in and out, 54 ticks each, with a glint (approach6) as it comes, by the sim's 60 Hz ticks (the reference video's 5 km and 3 km). ---- */
-enum { UV_NOKORI_KM = 132, REMAIN_PULSE = 54, REMAIN_KM_DX = 3, REMAIN_WORD_DX = 14, REMAIN_WORD_DY = -4 };
+enum { UV_NOKORI_KM = 132, REMAIN_PULSE = 54, REMAIN_KM_DX = 9, REMAIN_WORD_DX = 8, REMAIN_WORD_DY = -4 };
 static long remain_t0 = -1;
 static int remain_km;
 static float remain_prev = -1.0f;
