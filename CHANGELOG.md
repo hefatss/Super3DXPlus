@@ -7,7 +7,7 @@ What Super3DX+ adds or changes compared with [Re3DX+](NOTICE.md). Longer explana
 - Controller-first menus: full pad and keyboard control on every screen, with rebindable keys, pad buttons and analog axes
 - Controller input filtering, deadzone, response and button-steering speed tuning
 - Controller vibration (wall hits, expansion joints, tyre slip) with adjustable strength
-- CAMERA SHAKE (on the vibration screen): smooths out the view's shake at speed and over rough road, 0% to 100%
+- CAMERA SHAKE (in the game settings): smooths out the view's shake at speed and over rough road, 0% to 100%
 - Steering wheel support (untested on hardware): wheel axes and buttons are bindable, and force feedback (steering pull, centering, damping, road effects) through SDL haptic, with a WHEEL list in KEY BINDINGS for the device and gains
 - Rebuilt main menu flow: PLAY / SETTINGS / EXIT, then car selection, then Solo / Versus / Car settings
 - Stock, Full Tune and Hell's Tuning starting points (Hell's Tuning begins the story on Ch. 101)
@@ -45,6 +45,7 @@ What Super3DX+ adds or changes compared with [Re3DX+](NOTICE.md). Longer explana
 - Fixed a solid white wall at the exit of the C1 tunnels (about 10.8 km into C1 inward): the data build dropped the alpha of the tunnel mouths' faint white light mask (nondxt_sk_nk_lighteff01, alpha 17 at most) as if it were a sky dome, so it drew opaque. Rebuild the Tokyo packs (python tools/pipeline.py convert <arcade data> --only tokyo-day) to get the fix
 - The whole game can be built on an Android device with no PC (data and app, in Termux): `docs/ANDROID_ON_DEVICE.md`. `build_apk.py` uses Termux's own tools there; the converters find Termux's font packages; the Khronos EGL headers are bundled
 - Windows: a racing wheel on its maker's driver (a Fanatec) says "forces not available" and its axes and buttons cannot be bound: SDL's RawInput and Windows.Gaming.Input drivers took it first and have no forces. The wheel now comes through DirectInput; the reason SDL gives for a refused force device is shown in the settings (issue 2)
+- Windows: a PC whose graphics driver has no OpenGL ES (a virtual machine, remote desktop, an old or generic driver: "Could not initialize OpenGL / GLES library", issue 20) now runs on the bundled ANGLE (`third_party/angle`, OpenGL ES over Direct3D 11); if that fails too, a message says what is wrong instead of the game just closing
 - The turbo's whine was far too loud against the engine ("a jet engine", issue 6): measured on a recording of the arcade's own tuned Evo IX it sits about 19 dB under the engine, here it sat 9 to 11 dB under. Its level is now the arcade's; the whine's pitch was already right
 - Volume mixer: ENGINE and TURBO rows (0 to 200%, 100% = the arcade's balance) to set the engine against the turbo's whine
 - Fixed the course select's run light (the glow riding the route on the 3D Tokyo map) drawing as an offset white box when the data is built on Windows (issue 8): the converter compared path names with the wrong slashes there, so the glow's texture was left out. Run `python build.py gensrc` again (it rebuilds `data/minicourse.wpk`), then the setup or `build.py exe`

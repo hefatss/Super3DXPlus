@@ -2260,6 +2260,7 @@ static int option_rows(menu_state *m, orow r[16]) {
   r[n++] = (orow){ "TEXTURES", "HOW SHARP THE ROAD'S AND THE SCENERY'S TEXTURES STAY IN THE DISTANCE", OK_MIP, &m->mip };
   r[n++] = (orow){ "REFLECTION", "CAR PAINT AND GLASS REFLECT THEIR SURROUNDINGS, AS IN THE ARCADE", OK_SWITCH, &m->over_on };
   r[n++] = (orow){ "MILEAGE SCREEN", "SHOW THE MILEAGE TALLY AFTER A SINGLE PLAYER GAME", OK_SWITCH, &m->milage_on };
+  r[n++] = (orow){ "CAMERA SHAKE", "HOW MUCH THE VIEW SHAKES AT SPEED AND ON ROUGH ROAD. 0% KEEPS IT STEADY", OK_PCT, &m->cam_shake };
   if (m->hq_rows) {
     r[n++] = (orow){ "HD TEXTURES", "USE THE OPTIONAL UPSCALED TEXTURES", OK_SWITCH, &m->hd_tex };
     r[n++] = (orow){ "WET ROAD", "ADDS SCREENSPACE REFLECTIONS TO THE ROAD SURFACE", OK_SWITCH, &m->wet_on };
@@ -2404,13 +2405,12 @@ static void portinfo_enter(menu_state *m) {
 }
 
 /* the vibration screen (MENU_RUMBLE): each effect's strength in tenths; the controller's rumble is the sum of what they make */
-static int rumble_rows(menu_state *m, orow r[5]) {
+static int rumble_rows(menu_state *m, orow r[4]) {
   r[0] = (orow){ "OVERALL", "EVERYTHING AT ONCE", OK_PCT, &m->rum[0] };
   r[1] = (orow){ "WALL HITS", "THE JOLT OF A HIT AND THE BUZZ OF A SCRAPE", OK_PCT, &m->rum[1] };
   r[2] = (orow){ "EXPANSION JOINTS", "THE TAPS OF THE ROAD'S JOINTS, ZEBRA AND GUARD RAIL STRIPS", OK_PCT, &m->rum[2] };
   r[3] = (orow){ "TIRE SLIP", "THE RUMBLE THAT GROWS AS THE CAR SLIDES SIDEWAYS", OK_PCT, &m->rum[3] };
-  r[4] = (orow){ "CAMERA SHAKE", "HOW MUCH THE VIEW SHAKES AT SPEED AND ON ROUGH ROAD. 0% KEEPS IT STEADY", OK_PCT, &m->cam_shake };
-  return 5;
+  return 4;
 }
 
 static void rumble_enter(menu_state *m) {
@@ -2433,7 +2433,7 @@ static void rumble_step(menu_state *m, const menu_in *in) {
     option_back_to(m, OK_RUMBLE);
     return;
   }
-  orow r[5];
+  orow r[4];
   int n = rumble_rows(m, r);
   optl_step(m, r, n, &m->rum_row, in);
 }
@@ -2447,7 +2447,7 @@ static void draw_rumble(const menu_state *m, int clock, int bars, float screen_w
   hud_ui_begin(screen_w, screen_h);
   if (!tb) hud_ui_text("VIBRATION", 24.0f * k, 40.0f * k, 4.0f, 1, 1, 1, 1);
   hud_ui_end();
-  orow r[5];
+  orow r[4];
   int n = rumble_rows((menu_state *)m, r);
   draw_optlist(m, r, n, m->rum_row, OPTL_DY_DEBUG, screen_w, screen_h);
 }
@@ -10963,7 +10963,7 @@ static int menu_pointer(const menu_state *m, menu_in *in) {
     return 1;
   }
   if (m->screen == MENU_RUMBLE) {
-    orow r[5];
+    orow r[4];
     optl_pointer(m, in, r, rumble_rows((menu_state *)m, r), OPTL_DY_DEBUG);
     return 1;
   }
