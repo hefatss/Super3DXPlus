@@ -9,13 +9,13 @@
 /* SDL keycodes of the defaults (SDLK_*; no SDL here): the arrows are SDLK_SCANCODE_MASK | the scancode */
 enum {
   K_LEFT = 0x40000050, K_RIGHT = 0x4000004F, K_UP = 0x40000052, K_DOWN = 0x40000051,
-  K_ENTER = 13, K_SPACE = 32, K_BACKSPACE = 8, K_TAB = 9, K_X = 'x', K_Z = 'z', K_C = 'c', K_R = 'r', K_T = 't', K_P = 'p'
+  K_ENTER = 13, K_SPACE = 32, K_BACKSPACE = 8, K_TAB = 9, K_X = 'x', K_Z = 'z', K_C = 'c', K_R = 'r', K_T = 't', K_P = 'p', K_L = 'l'
 };
 
 static const char *const MENU_NAMES[BM_COUNT] = { "LEFT", "RIGHT", "UP", "DOWN",
                                                   "OK (GAS)", "BACK (BRAKE)", "VIEW" };
 static const char *const RACE_NAMES[BR_COUNT] = { "STEER LEFT", "STEER RIGHT", "GAS", "BRAKE", "SHIFT UP", "SHIFT DOWN", "CAMERA",
-                                                  "AT / MT", "PAUSE", "GEAR 1", "GEAR 2", "GEAR 3", "GEAR 4", "GEAR 5", "GEAR 6" };
+                                                  "AT / MT", "PAUSE", "GEAR 1", "GEAR 2", "GEAR 3", "GEAR 4", "GEAR 5", "GEAR 6", "HEADLIGHT FLASH" };
 
 static bind_slot B[BIND_CONTEXTS][BR_COUNT][BIND_SLOTS];
 static const char *(*key_namer)(int code);
@@ -103,6 +103,7 @@ void bind_context_defaults(int ctx) {
     put(ctx, BR_CAMERA, PK, BIND_PAD, BP_Y), put(ctx, BR_CAMERA, PK + 1, BIND_PAD, BP_BACK);
     put(ctx, BR_TRANS, 0, BIND_KEY, K_T);
     put(ctx, BR_PAUSE, 0, BIND_KEY, K_P), put(ctx, BR_PAUSE, PK, BIND_PAD, BP_START);
+    put(ctx, BR_FLASH, 0, BIND_KEY, K_L), put(ctx, BR_FLASH, PK, BIND_PAD, BP_X);
   }
   dirty = 1;
 }
@@ -261,6 +262,11 @@ void bind_load(const char *dir) {
     }
   }
   fclose(f);
+  /* a file from before the headlight flash has none: its defaults, where the keys are free (the file leaves what it lacks unbound) */
+  if (count(BIND_RACE, BR_FLASH, BIND_KEY) + count(BIND_RACE, BR_FLASH, BIND_PAD) == 0) {
+    if (bind_lookup(BIND_RACE, BIND_KEY, K_L) < 0) B[BIND_RACE][BR_FLASH][0] = (bind_slot){ BIND_KEY, K_L };
+    if (bind_lookup(BIND_RACE, BIND_PAD, BP_X) < 0) B[BIND_RACE][BR_FLASH][BIND_KEYS] = (bind_slot){ BIND_PAD, BP_X };
+  }
   /* the menus must stay usable from the keyboard and from a pad: an action the file left without keys, or without pad buttons, has its defaults for them */
   static bind_slot dflt[BR_COUNT][BIND_SLOTS];
   static bind_slot keep[BR_COUNT][BIND_SLOTS];

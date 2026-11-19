@@ -238,6 +238,8 @@ static struct {
   menu_state menu;
   int in_menu; /* the front end is up; the race starts once a course is chosen */
   int paused;  /* the race is frozen under its pause menu */
+  int flash_held; /* the headlight flash switch is held */
+  unsigned flash_t0; /* the arcade frame it was pressed on */
   int track_ready; /* as load_news.track: the loading's (the menus see seen.track) */
   int start_ready; /* as load_news.start */
   int pre_wait;    /* frames the race's title page has waited for the loading */
@@ -1794,7 +1796,7 @@ void app_ffb(ffb_out *o) {
 /* the race's action of each bindable one (bind.h BR_*) */
 static const signed char RACE_KEY[BR_COUNT] = { APP_KEY_LEFT, APP_KEY_RIGHT, APP_KEY_ACCEL, APP_KEY_BRAKE, APP_KEY_SHIFT_UP,
                                                 APP_KEY_SHIFT_DOWN, APP_KEY_CAMERA, APP_KEY_TRANS, APP_KEY_PAUSE,
-                                                APP_KEY_GEAR_1, APP_KEY_GEAR_2, APP_KEY_GEAR_3, APP_KEY_GEAR_4, APP_KEY_GEAR_5, APP_KEY_GEAR_6 };
+                                                APP_KEY_GEAR_1, APP_KEY_GEAR_2, APP_KEY_GEAR_3, APP_KEY_GEAR_4, APP_KEY_GEAR_5, APP_KEY_GEAR_6, APP_KEY_FLASH };
 
 int app_bind_capturing(void) { return menu_bind_capturing(&G.menu); }
 
@@ -1859,6 +1861,11 @@ void app_key(int key, int down) {
     if (down && !app_racing()) return;
     if (down) G.hud.kb |= HELD[key];
     else G.hud.kb &= ~HELD[key];
+    return;
+  }
+  if (key == APP_KEY_FLASH) { /* (held: the headlights flash while it is, from the press) */
+    if (down && !G.flash_held) G.flash_t0 = G.car.lamp_tick;
+    G.flash_held = down && app_racing();
     return;
   }
   if (!down || !app_racing()) return;
@@ -3550,7 +3557,7 @@ static void vs_day_open(menu_state *m);
 static void vs_area(menu_state *m, const net_lobby *l, double now) {
   int host = l->me == l->host;
   if (m->screen == MENU_VS && m->vs.state == MENU_VS_LOBBY && !m->vs.area_go && !host && l->host < m->vs.n) {
-    int st = l->player[l->host].status;
+    int st = menu_vs_status_plain(l->player[l->host].status, NULL);
     if (st >= MENU_VS_CHOOSING && st < MENU_VS_FINAL) m->vs.area_go = 1;
   }
   if (m->screen != MENU_VS_AREA) {
@@ -3559,7 +3566,7 @@ static void vs_area(menu_state *m, const net_lobby *l, double now) {
   }
   if (!G.vs_area_at) G.vs_area_at = now;
   if (!host) {
-    int st = l->host < m->vs.n ? l->player[l->host].status : 0;
+    int st = l->host < m->vs.n ? menu_vs_status_plain(l->player[l->host].status, NULL) : 0;
     if (m->vs.area_final < 0 && st >= MENU_VS_FINAL && st < MENU_VS_FINAL + MENU_VS_CARDS) m->vs.area_final = st - MENU_VS_FINAL;
     /* the host on to the time zone vote: this one with it */
     if (MENU_VS_IN_DAY(st)) vs_day_open(m);
@@ -3618,7 +3625,7 @@ static void vs_day(menu_state *m, const net_lobby *l, double now) {
   }
   if (!G.vs_day_at) G.vs_day_at = now, G.vs_day_started = 0;
   if (!host) {
-    int st = l->host < m->vs.n ? l->player[l->host].status : 0;
+    int st = l->host < m->vs.n ? menu_vs_status_plain(l->player[l->host].status, NULL) : 0;
     int zone = st >= MENU_VS_DAY_FINAL && st < MENU_VS_LOADED ? st - MENU_VS_DAY_FINAL : st >= MENU_VS_TUNE && st < MENU_VS_TUNED + 2 ? (st - MENU_VS_TUNE) & 1 : -1;
     if (m->vs.day_final < 0 && zone >= 0) m->vs.day_final = zone, G.vs_day_final_at = now;
     if (m->vs.day_final >= 0 && now - G.vs_day_final_at >= VS_REVEAL) menu_vs_tune_open(m); /* (the result shown, then the HP) */
@@ -3785,7 +3792,9 @@ static void vs_menu(void) {
       if (m->vs.mismatch[i]) vs_ascii(m->vs.car[i], sizeof m->vs.car[i], "VERSION MISMATCH, PLEASE UPDATE");
       m->vs.racing[i] = pl->status == 1 || pl->status == MENU_VS_LOADED;
       /* the area vote's (menu_vs_status) */
-      int st = pl->status;
+      int host_card = -1, st = menu_vs_status_plain(pl->status, &host_card);
+      /* the host's later statuses name the area it chose: a machine that missed the result's brief one has it from them */
+      if (i == l->host && i != l->me && host_card >= 0 && m->vs.area_final < 0) m->vs.area_final = host_card;
       m->vs.other_vote[i] = st >= MENU_VS_CHOOSING && st < MENU_VS_VOTED ? 0 : st >= MENU_VS_VOTED && st < MENU_VS_OMAKASE ? 1
                             : st >= MENU_VS_OMAKASE && st < MENU_VS_FINAL ? 2 : st >= MENU_VS_FINAL && st < MENU_VS_DAY ? 1 : -1;
       m->vs.other[i] = st >= MENU_VS_FINAL ? st - MENU_VS_FINAL : st >= MENU_VS_OMAKASE ? st - MENU_VS_OMAKASE
@@ -4985,6 +4994,8 @@ void app_frame(float dt) {
   pend_up |= in.shift_up, pend_down |= in.shift_down;
   if (in.gear) pend_gear = in.gear;
   in.shift_up = pend_up, in.shift_down = pend_down, in.gear = pend_gear;
+  if (getenv("MT3DX_FLASH") && G.vs_race && !G.flash_held && app_racing()) G.flash_held = 1, G.flash_t0 = G.car.lamp_tick; /* test: the switch held from the race's start */
+  in.flash = G.vs_race && G.flash_held && !G.paused && ((G.car.lamp_tick - G.flash_t0) / 6) % 2 == 0; /* (off 0.1 s, on 0.1 s, while the switch is held) */
   for (int i = 0; i < steps; ++i) {
     if (i == steps - 1) G.car_prev = G.car; /* (the state the render interpolates from: a step ago) */
     if (G.ten_white && ++G.ten_white > 1 + TEN_WHITE_HOLD + TEN_WHITE_FADE) G.ten_white = 0;

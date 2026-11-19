@@ -15,7 +15,8 @@ enum { BIND_MENU, BIND_RACE, BIND_CONTEXTS };
 enum { BM_LEFT, BM_RIGHT, BM_UP, BM_DOWN, BM_OK, BM_BACK, BM_VIEW, BM_COUNT };
 enum { BR_LEFT, BR_RIGHT, BR_GAS, BR_BRAKE, BR_SHIFT_UP, BR_SHIFT_DOWN, BR_CAMERA, BR_TRANS, BR_PAUSE,
        /* the six positions of an H shifter (the GEARS list): the press puts the lever in that gear at once, beside shift up and down */
-       BR_GEAR_1, BR_GEAR_2, BR_GEAR_3, BR_GEAR_4, BR_GEAR_5, BR_GEAR_6, BR_COUNT }; /* (the file's numbers keep the removed reset car's place: BR_RESET_FILE) */
+       BR_GEAR_1, BR_GEAR_2, BR_GEAR_3, BR_GEAR_4, BR_GEAR_5, BR_GEAR_6,
+       BR_FLASH /* the interrupt switch's second job in a versus race: the headlights flash */, BR_COUNT }; /* (the file's numbers keep the removed reset car's place: BR_RESET_FILE) */
 #define BR_RESET_FILE 7
 
 /* pad inputs: buttons, the left stick's four directions and the two triggers (as buttons, past a threshold) */

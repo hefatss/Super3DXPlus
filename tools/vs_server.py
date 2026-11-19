@@ -16,7 +16,7 @@ Protocol (UDP, little-endian), every datagram starts with b"WV", version 1, type
   4 GO     s->c  u32 race id, u32 seed, u8 ramp, u8 km, u8 machines, u8 your PCB,
                  then per machine: u8 pcb, u32 id, char name[16], u8 n, profile[n];
                  then u8 song + 2 (0: none sent)
-  5 RACE   c->s  u32 race id, u8 pcb, packet (relayed as it is to the race's other machines)
+  5 RACE   c->s  u32 race id, u8 pcb, packet [, u16 the sender's round trip ms] (relayed as it is to the race's other machines)
   6 BYE    c->s  u32 id
   7 DISCOVER c->s  (the LAN's search, broadcast to the port; a device hosting in the app,
                  src/vs_host.c, answers it; this server does not)

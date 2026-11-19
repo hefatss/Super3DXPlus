@@ -723,6 +723,8 @@ int menu_vs_pick(const menu_state *m);
 void menu_name_glyphs(short g[5], const char *ascii);
 /* the vote's card (1..8) to the arcade's area (0 C1 .. 7 FUKUOKA: areaIDFromMenuOrder) */
 int menu_vs_card_area(int card);
+/* a status as the lobby has it without the host's area card (menu_vs_status), the card in *card (-1 none) */
+int menu_vs_status_plain(int st, int *card);
 /* the race's GO: from the votes (or the lobby) to the versus' NOW LOADING */
 void menu_vs_loading(menu_state *m);
 /* the join ramp's name for the versus screen (0..MENU_VS_RAMPS-1) */

@@ -28,3 +28,4 @@ int vs_host_open(uint32_t owner, int online) { return (void)owner, (void)online,
 void vs_host_close(void) {}
 int vs_host_is_open(void) { return 0; }
 void vs_host_poll(double now, const char *name) { (void)now, (void)name; }
+int net_ping_ms(int pcb) { return (void)pcb, -1; }

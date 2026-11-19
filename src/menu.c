@@ -1453,6 +1453,7 @@ static void vs_day_step(menu_state *m, const menu_in *in) {
  * went unseen, the time zone vote had none). On the area vote it is the strip's card 0, which
  * the cursor walks to; on the time zone vote the card shown stays, the BGM line its song. */
 static int vs_omakase_shown(const menu_state *m) {
+  return 0; /* (the LEAVE IT TO THE OTHERS key is gone: a vote is a card of the strip, or the time's end) */
   if (m->vs.state != MENU_VS_LOBBY) return 0;
   if (m->screen == MENU_VS_AREA) return !m->vs.voted && m->vs.area_final < 0;
   return m->screen == MENU_BGM && m->vs.day && !m->vs.day_voted && m->vs.day_final < 0 && !m->slide;
@@ -1473,6 +1474,8 @@ static void vs_omakase(menu_state *m) {
 
 /* the key, or (voted so) its caption alone */
 static void draw_vs_omakase(const menu_state *m, float screen_w, float screen_h) {
+  (void)m, (void)screen_w, (void)screen_h;
+  return; /* (no key, no caption) */
   int voted = m->screen == MENU_VS_AREA ? m->vs.voted == 2 && m->vs.area_final < 0
                                         : m->vs.day_voted == 2 && m->vs.day_final < 0;
   if (!voted && !vs_omakase_shown(m)) return;
@@ -1925,6 +1928,13 @@ static void draw_setting(const menu_state *m, int clock, void (*draw3d)(void *),
   for (int i = 0, div = 100; i < 3; ++i, div /= 10)
     anm_draw_sprite(anm_sprite(T_SET_DIGIT + hp / div % 10), SET_HP_X + 22.0f * (float)i, SET_ROW_Y - 18.0f, 1);
   anm_draw_sprite(anm_sprite(T_SET_HP), SET_HP_X + 70.0f, SET_ROW_Y + 2.0f, 1);
+  if (m->vs.tuning) { /* (a versus' HP screen: the track the votes chose, on the band, left aligned, left of the horsepower) */
+    int name = anm_sprite(COURSE_NAME[car_course_id(m->course)]);
+    if (name >= 0) {
+      float w = anm_sprite_width(name), h = anm_sprite_height(name), room = SET_HP_X - 24.0f - 14.0f, sc = w > room ? room / w : 1.0f;
+      anm_draw_part(name, (float[4]){ 0, 0, w, h }, (float[4]){ 14.0f, 116.0f - 0.5f * h * sc, 14.0f + w * sc, 116.0f + 0.5f * h * sc }, 1);
+    }
+  }
   /* the balance badges, the car's lit, drawn in from the keys */
   int grade = car_tune_grade(power, handling);
   for (int k = 0; k < 5; ++k)
@@ -2707,7 +2717,7 @@ static const char *const FR_NOTE[FR_COUNT] = {
 /* the RACE list has one row that is no action, under STEER LEFT / RIGHT: BUTTON STEERING SPEED (RS_ROW); the rows past it are the actions one on */
 #define RS_ROW 2
 /* the rows of the RACE list (-1: the steering speed) and of the GEARS list, as race actions */
-static const signed char RACE_ROWS[8] = { BR_LEFT, BR_RIGHT, -1, BR_GAS, BR_BRAKE, BR_CAMERA, BR_TRANS, BR_PAUSE };
+static const signed char RACE_ROWS[9] = { BR_LEFT, BR_RIGHT, -1, BR_GAS, BR_BRAKE, BR_CAMERA, BR_TRANS, BR_PAUSE, BR_FLASH };
 static const signed char GEAR_ROWS[8] = { BR_SHIFT_UP, BR_SHIFT_DOWN, BR_GEAR_1, BR_GEAR_2, BR_GEAR_3, BR_GEAR_4, BR_GEAR_5, BR_GEAR_6 };
 static int bind_act(int ctx, int row) { return ctx == BIND_RACE ? RACE_ROWS[row] : ctx == BIND_GEARS ? GEAR_ROWS[row] : row; }
 /* the bindings' context of a list (the GEARS list's actions are the race's) */
@@ -2725,7 +2735,7 @@ static void race_defaults_keep_gears(void) {
   }
 }
 static int bind_is_speed(int ctx, int row) { return ctx == BIND_RACE && row == RS_ROW; }
-static int bind_rows(int ctx) { return ctx == BIND_FFB ? FR_COUNT : ctx == BIND_CONTEXTS ? BA_COUNT + 3 : ctx == BIND_RACE || ctx == BIND_GEARS ? 8 : bind_actions(ctx); } /* (the AXES list: the axes, then the steering filter's switch and its two numbers) */
+static int bind_rows(int ctx) { return ctx == BIND_FFB ? FR_COUNT : ctx == BIND_CONTEXTS ? BA_COUNT + 3 : ctx == BIND_RACE ? 9 : ctx == BIND_GEARS ? 8 : bind_actions(ctx); } /* (the AXES list: the axes, then the steering filter's switch and its two numbers) */
 /* the filter's number of a row of the AXES list past the switch (half steps, 0..20) */
 static int *filter_value(menu_state *m, int row) {
   return row == BA_COUNT + 1 ? &m->filter_smooth : row == BA_COUNT + 2 ? &m->filter_counter : &m->btn_steer; /* (+3: the buttons' steering speed, 1..10, whole steps) */
@@ -10312,11 +10322,25 @@ static const int CARD_AREA[MENU_VS_CARDS] = { -1, 0, 1, 2, 3, 4, 5, 7, 6 };
 
 int menu_vs_card_area(int card) { return card > 0 && card < MENU_VS_CARDS ? CARD_AREA[card] : -1; }
 
+/* The host's statuses in the time zone vote and on the HP screen carry the area's card too (MENU_VS_HOST_AREA + 16 * card + the status - MENU_VS_DAY), so a machine that
+ * missed the area result's brief status still knows which track won (it showed the wrong track's HP screen). menu_vs_status_plain takes it apart. */
+#define MENU_VS_HOST_AREA 100
+static int vs_with_area(const menu_state *m, int st) {
+  if (m->vs.me != m->vs.host || m->vs.area_final < 0 || m->vs.area_final >= MENU_VS_CARDS || st < MENU_VS_DAY || st >= MENU_VS_DAY + 16) return st;
+  return MENU_VS_HOST_AREA + 16 * m->vs.area_final + (st - MENU_VS_DAY);
+}
+int menu_vs_status_plain(int st, int *card) {
+  if (card) *card = -1;
+  if (st < MENU_VS_HOST_AREA || st >= MENU_VS_HOST_AREA + 16 * MENU_VS_CARDS) return st;
+  if (card) *card = (st - MENU_VS_HOST_AREA) / 16;
+  return MENU_VS_DAY + (st - MENU_VS_HOST_AREA) % 16;
+}
+
 int menu_vs_status(const menu_state *m) {
-  if (m->vs.tuning) return (m->vs.tuned ? MENU_VS_TUNED : MENU_VS_TUNE) + (m->vs.day_final > 0);
+  if (m->vs.tuning) return vs_with_area(m, (m->vs.tuned ? MENU_VS_TUNED : MENU_VS_TUNE) + (m->vs.day_final > 0));
   if (m->screen == MENU_BGM && m->vs.day) {
-    if (m->vs.day_final >= 0 && m->vs.me == m->vs.host) return MENU_VS_DAY_FINAL + m->vs.day_final;
-    return (m->vs.day_voted == 2 ? MENU_VS_DAY_OMAKASE : m->vs.day_voted ? MENU_VS_DAY_VOTED : MENU_VS_DAY) + m->zone;
+    if (m->vs.day_final >= 0 && m->vs.me == m->vs.host) return vs_with_area(m, MENU_VS_DAY_FINAL + m->vs.day_final);
+    return vs_with_area(m, (m->vs.day_voted == 2 ? MENU_VS_DAY_OMAKASE : m->vs.day_voted ? MENU_VS_DAY_VOTED : MENU_VS_DAY) + m->zone);
   }
   /* (on the stars screen as if still racing: the host's START waits for it) */
   if (m->screen == MENU_VS_STAR) return 1;

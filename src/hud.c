@@ -1,3 +1,4 @@
+#include "netdiag.h"
 #include "hud.h"
 
 #include <math.h>
@@ -1258,6 +1259,7 @@ static const short VS_BOX_X[CAR_RIVALS] = { 575, 463, 361 };
 static const unsigned char VS_GRADE_UV[5] = { 0x59, 0x58, 0x57, 0x5a, 0x5b };
 static hud_vs_box vs_box[CAR_RIVALS];
 static int vs_n;
+static float ui_w = 1024, ui_h = 768; /* (the screen the HUD draws to: hud_draw's) */
 
 void hud_set_vs(const hud_vs_box *box, int n) {
   vs_n = n < 0 ? 0 : n > CAR_RIVALS ? CAR_RIVALS : n;
@@ -1362,6 +1364,18 @@ static void draw_vs_box(int i, float gap) {
   if (len > 32) len = 32;
   for (int k = 0; k < len; ++k) g[k] = tg[k], half[k] = (unsigned char)title_glyph_half(tg[k]);
   vs_text(a, frame, T_VS_TITLE, PLATE_TITLE_GLYPH, g, half, len, 20, 15, 7, 11, dx, dy, zoom);
+  /* the player's ping under the advantage (online and LAN: its round trip to the host as its packets carry it): P: 21, green to 75 ms, yellow to 120, orange to 200, red over */
+  int ping = net_ping_ms(b->seat);
+  float pr[4];
+  if (ping >= 0 && anm_sprite_rect(a, frame, anm_sprite(T_CPU_DIGIT0), pr)) {
+    char t[16];
+    snprintf(t, sizeof t, "P: %d", ping);
+    float cr = ping < 75 ? 0.25f : ping < 120 ? 1.0f : ping < 200 ? 1.0f : 1.0f, cg = ping < 75 ? 1.0f : ping < 120 ? 0.95f : ping < 200 ? 0.55f : 0.2f,
+          cb = ping < 75 ? 0.3f : ping < 120 ? 0.2f : ping < 200 ? 0.1f : 0.2f;
+    hud_ui_begin(ui_w, ui_h);
+    hud_ui_text(t, 1.6f * (dx + zoom * pr[0]), 1.6f * (dy + zoom * pr[3]) + 3.0f, 2.2f, cr, cg, cb, 1.0f);
+    hud_ui_end();
+  }
 }
 
 
@@ -1527,7 +1541,10 @@ static void draw_junction(const car_state *car) {
     shown = boards == 2 ? 3 : 0;
   }
   if (ft >= 0 && ++ft > 95) ft = -1;
-  if (ft >= 0 && a_flash >= 0) anm_draw(a_flash, (side ? 101 : 1) + (ft < 94 ? ft : 94), 1);
+  if (ft >= 0 && a_flash >= 0) { /* (the edges' flare across the whole window: a wide one is stretched from the 4:3 layout's middle out to its sides) */
+    float sx = (1024.0f + 2.0f * EDGE) / 1024.0f;
+    anm_draw_xy(a_flash, (side ? 101 : 1) + (ft < 94 ? ft : 94), 1, 320.0f * (1.0f - sx), 0, sx, 1, NULL, 0);
+  }
   if (!shown) return;
   if (shown == 2) { /* (the message) */
     anm_swap mes = { anm_sprite(T_JCT_MES), uv(UV_JCT_CHOOSE) };
@@ -2721,6 +2738,7 @@ static void draw_phys(const hud_state *h, const car_state *car, const car_input 
 }
 
 void hud_draw(const hud_state *h, const car_state *car, const car_input *in, float fps) {
+  ui_w = h->screen_w, ui_h = h->screen_h;
   glUseProgram(prog);
   mat4 proj = screen_ortho(h->screen_w, h->screen_h);
   glUniformMatrix4fv(u_proj, 1, GL_FALSE, proj.m);

@@ -33,6 +33,8 @@ static struct {
   int rx_new[CAR_LINK_MACHINES];
   uint32_t rx_count[CAR_LINK_MACHINES];
   int rx_any[CAR_LINK_MACHINES];
+  int rx_ping[CAR_LINK_MACHINES]; /* each machine's own round trip to the host (ms) as its packets carry it after the car link packet; -1 none */
+  double rx_ping_t[CAR_LINK_MACHINES];
 } N = { .fd = NET_NOFD };
 
 static void put32(unsigned char *p, uint32_t v) {
@@ -98,6 +100,12 @@ int net_log_on(void) {
 
 int net_age_frames(int pcb) { return pcb >= 0 && pcb < CAR_LINK_MACHINES && St[pcb].any ? St[pcb].age_last : -1000; }
 double net_rtt_ms(void) { return rtt; }
+
+/* machine pcb's round trip to the host in ms (its race packets carry it); -1 if not known or it stopped coming */
+int net_ping_ms(int pcb) {
+  if (pcb < 0 || pcb >= CAR_LINK_MACHINES || N.rx_ping[pcb] < 0 || mono() - N.rx_ping_t[pcb] > 4.0) return -1;
+  return N.rx_ping[pcb];
+}
 
 /* how far ahead of machine pcb's clock this machine's race clock is, in frames (positive: ahead; the data's delay on the way taken off) */
 double net_clock_ahead_frames(int pcb, int *valid) {
@@ -235,6 +243,10 @@ static void got(const unsigned char *b, int len, double now) {
     uint32_t count = get32(p + 5 + PACKET_COUNT);
     if (N.rx_any[pcb] && (int32_t)(count - N.rx_count[pcb]) < 0) return; /* came in late */
     memcpy(N.rx[pcb], p + 5, CAR_LINK_PACKET);
+    if (len >= 5 + CAR_LINK_PACKET + 2) { /* (a newer machine's: its round trip after the packet; 0xffff not measured yet) */
+      int ms = p[5 + CAR_LINK_PACKET] | p[6 + CAR_LINK_PACKET] << 8;
+      N.rx_ping[pcb] = ms == 0xffff ? -1 : ms, N.rx_ping_t[pcb] = mono();
+    }
     N.rx_count[pcb] = count;
     stat_race(pcb, count, mono());
     N.rx_any[pcb] = N.rx_new[pcb] = 1;
@@ -349,18 +361,21 @@ int net_take_go(net_go *go) {
   N.race = N.go.race;
   memset(N.rx_new, 0, sizeof N.rx_new);
   memset(N.rx_any, 0, sizeof N.rx_any);
+  for (int k = 0; k < CAR_LINK_MACHINES; ++k) N.rx_ping[k] = -1;
   return 1;
 }
 
 void net_race_send(const unsigned char *packet, int len) {
   if (!net_is_open() || !N.race || len > CAR_LINK_PACKET) return;
-  unsigned char b[4 + 5 + CAR_LINK_PACKET];
+  unsigned char b[4 + 5 + CAR_LINK_PACKET + 2];
   head(b, RACE);
   put32(b + 4, N.race);
   b[8] = (unsigned char)N.go.pcb;
   memcpy(b + 9, packet, (size_t)len);
   if (len >= PACKET_COUNT + 4) tx_count = get32(packet + PACKET_COUNT); /* (this machine's frame, to measure the others' packets' age by) */
-  tx(b, 9 + len);
+  int ms = rtt < 0 ? 0xffff : rtt > 60000.0 ? 60000 : (int)(rtt + 0.5);
+  b[9 + len] = (unsigned char)ms, b[10 + len] = (unsigned char)(ms >> 8); /* (this machine's round trip to the host, for the others' HUD) */
+  tx(b, 11 + len);
 }
 
 void net_race_receive(void) {

@@ -1488,6 +1488,7 @@ void car_update(car_state *c, const car_input *in) {
   WF(P.gin + 4, in->throttle);
   WF(P.gin + 8, in->brake);
   W32(P.gin + 0x14, P.manual ? (uint32_t)P.lever : 0xffffffffu);
+  if (P.vs_race) W8(P.m + 0x3b5u, in->flash ? 1u : 0u); /* (the headlights' flash: clCarDisp's spot light and flares are on while this is 0, and the packet has it for the other machines) */
   /* the arcade frame: the traffic's AI and life, the car, what everything hit, the
    * checkpoints and the time, the sounds' cues */
   call(f_8983f64, 1, P.gin_ptr);

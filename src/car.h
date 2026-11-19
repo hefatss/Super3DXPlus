@@ -13,6 +13,7 @@ typedef struct {
   int shift_up, shift_down; /* edge-triggered requests */
   int gear;       /* an H shifter's position pressed (1..6, 0 none): the lever goes there at once, before any shift up or down */
   int analog;     /* steer is the iPad's tilt (the gyro's), not the buttons' */
+  int flash;      /* the headlights are off for this step of their flashing (a versus race's interrupt switch): CMachine +0x3b5, which the other machines see in the packet */
 } car_input;
 
 /* the traffic (yt::COtherGen): its four models, in the order of data/othercar's path tables */

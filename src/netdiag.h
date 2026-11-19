@@ -10,6 +10,8 @@
 int net_age_frames(int pcb);
 /* the round trip to the host in ms (the last answer); -1 none yet */
 double net_rtt_ms(void);
+/* machine pcb's own round trip to the host in ms, as its race packets carry it (the HUD's P: n under each rival's card); -1 not known */
+int net_ping_ms(int pcb);
 
 /* how many frames this machine's race clock is ahead of machine pcb's (the clients pace themselves to the host's with it, app.c vs_pace); valid is
  * 0 until enough packets and a round trip are in */

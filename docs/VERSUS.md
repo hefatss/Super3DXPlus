@@ -1,19 +1,19 @@
 # Versus: hosting and joining
 
 The versus screen has two discs: **LAN** and **ONLINE VERSUS**. Up to 4 players. Everyone needs the same build number (a mismatched player shows
-VERSION MISMATCH and holds the start). The Android players all speak the same protocol (`tools/vs_server.py` documents it).
+VERSION MISMATCH and holds the start). The Windows, Linux/Pi and Android players all speak the same protocol (`tools/vs_server.py` documents it).
 
 ## LAN
 
 1. Everyone on the same Wi-Fi or wired network.
-2. One player: LAN ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ **HOST A GAME**. The others: LAN; the game appears under GAMES NEARBY, tap it.
+2. One player: LAN → **HOST A GAME**. The others: LAN; the game appears under GAMES NEARBY, tap it.
 3. The host presses START in the lobby.
 
 If nothing appears, allow the game through the host's firewall (UDP, private networks).
 
 ## Online
 
-**Hosting.** ONLINE VERSUS ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ **HOST ONLINE**. The game opens a UDP port (27015, or the next free one up to 27024, or any free one), asks the
+**Hosting.** ONLINE VERSUS → **HOST ONLINE**. The game opens a UDP port (27015, or the next free one up to 27024, or any free one), asks the
 router to forward it (UPnP, nothing to set up on most home routers) and finds its public address. The screen then shows a **room code**
 (15 digits, `ip * 65536 + port`) and the address it stands for. Give the code to the others. The line under it says how it went:
 
@@ -25,11 +25,11 @@ router to forward it (UPnP, nothing to set up on most home routers) and finds it
 
 The forwarding is a lease of two hours, renewed while the game is hosted and removed when hosting stops.
 
-**Joining.** ONLINE VERSUS ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ type the host's **room code** or its IPv4 address (an address with dots uses port 27015) ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ **CONNECT**.
+**Joining.** ONLINE VERSUS → type the host's **room code** or its IPv4 address (an address with dots uses port 27015) → **CONNECT**.
 
 ## A dedicated server
 
-`python3 tools/vs_server.py [port]` on any computer the players can reach (a VPS; forward the UDP port if it is at home). Everyone types
+`python3 tools/vs_server.py [port]` on any computer the players can reach (a VPS, a Pi; forward the UDP port if it is at home). Everyone types
 its address. It relays the race packets; nobody has to be the host's machine.
 
 ## Ports and "port in use"
@@ -82,7 +82,9 @@ simulating both cars from the same inputs) would remove both; it is not built.
 ## Measuring (for the netcode work)
 
 The log lines are off unless `MT3DX_NETLOG=1` is in the environment (a race writes hundreds of them); the behaviour they describe is always on. They go to
-stderr: logcat on Android (app log).
+stderr: `log.txt` on Windows, `game.log` on the Pi, logcat on Android. On Windows the player writes `<save folder>/log.txt` itself when it is started by a
+double-click or `play.bat` (the previous run's is kept as `log-prev.txt`, which is the one to send after a hang and a restart); started with its stderr sent
+somewhere (`2> log.txt`) or with `MT3DX_STDERR=1` set it leaves it alone. The versus' own events (joined, race, loaded, left) are in it without `MT3DX_NETLOG`.
 
 - `versus net: from pcb N: ...` every 2 s: the packets from that machine in the window, their **age in frames** (this machine's frame counter minus the packet's;
   with the clocks locked, the delay), the **gap** between arrivals, packets **lost** and **late**, and the **rtt** to the host (a PING each second, answered
@@ -92,10 +94,10 @@ stderr: logcat on Android (app log).
   the error by the frames since a contact. `versus react`, `versus own jump`, `versus spike`, `versus calib`, `versus trace`, `versus contact`, `versus near`:
   the contact and turn events, each capped.
 - `MT3DX_NET_LAG=<ms>[,<jitter ms>[,<loss %>]]` makes this machine delay (and lose) everything it receives, to try a bad connection on a LAN; set it on both
-  machines for a lag each way. `MT3DX_AUTODRIVE` lets the car drive itself for a lone tester
-  (the arcade pilot steers, `MT3DX_AUTODRIVE_KMH` caps the speed); `MT3DX_NETLOG=1` logs other things.
-## The race as the arcade runs it (what the console shows)
+  machines for a lag each way. On the Pi: `a local dev script on|off`; the Pi's car can drive itself for a lone tester with `a local dev script on|off`
+  (the arcade's pilot steers, `MT3DX_AUTODRIVE_KMH` caps the speed); `a local dev script KEY=VAL ...` sets other variables (`MT3DX_NETLOG=1`).
 
+## The race as the arcade runs it (what the console shows)
 
 - **Route choice.** The arcade's own `CBranch` decides where the field goes at a junction: once every machine has crossed the decision line, the
   machine furthest along (`GetPcbId_OfMaxOdo`) chooses by its lane across the road at that line (`DecideBranch(float)`); inside the last 500 m it is a
@@ -114,5 +116,9 @@ stderr: logcat on Android (app log).
   given up on after 5 s without its packets in a race (10 s in the lobby). The goal wait (`CState::Ck_GoalWait_2_Goal`) needs every machine's
   "finished" flag, so the one that left has it set for it (the others finish and are placed; it ranks last).
 
-Test helpers: `MT3DX_VSAUTO=host[:n]|join`, `MT3DX_GOTO=36` (the versus screen) and `MT3DX_VSKM=<km>` (a shorter race).
+Test helpers: `tools/test/vs2.ps1` runs two players on one PC (host and client, both driving themselves, shots and logs per player);
+`MT3DX_VSAUTO=host[:n]|join`, `MT3DX_GOTO=36` (the versus screen) and `MT3DX_VSKM=<km>` (a shorter race) are what it sets.
 
+## Ping on the HUD
+
+Every race packet carries its sender's round trip to the host after the car link packet (two bytes, ms; 0xffff not measured yet). The HUD shows it as P: n under each rival's ADVANTAGE, coloured green below 75 ms, yellow to 120, orange to 200, red above. Hosts and servers relay the packet whole; vs_host.c accepts the two extra bytes (a host from before them drops the packets of a newer client).
