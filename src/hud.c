@@ -1260,6 +1260,8 @@ static const unsigned char VS_GRADE_UV[5] = { 0x59, 0x58, 0x57, 0x5a, 0x5b };
 static hud_vs_box vs_box[CAR_RIVALS];
 static int vs_n;
 static float ui_w = 1024, ui_h = 768; /* (the screen the HUD draws to: hud_draw's) */
+static int ping_on = 1;
+void hud_set_ping(int on) { ping_on = on != 0; }
 
 void hud_set_vs(const hud_vs_box *box, int n) {
   vs_n = n < 0 ? 0 : n > CAR_RIVALS ? CAR_RIVALS : n;
@@ -1365,7 +1367,7 @@ static void draw_vs_box(int i, float gap) {
   for (int k = 0; k < len; ++k) g[k] = tg[k], half[k] = (unsigned char)title_glyph_half(tg[k]);
   vs_text(a, frame, T_VS_TITLE, PLATE_TITLE_GLYPH, g, half, len, 20, 15, 7, 11, dx, dy, zoom);
   /* the player's ping under the advantage (online and LAN: its round trip to the host as its packets carry it): P: 21, green to 75 ms, yellow to 120, orange to 200, red over */
-  int ping = net_ping_ms(b->seat);
+  int ping = ping_on ? net_ping_ms(b->seat) : -1;
   float pr[4];
   if (ping >= 0 && anm_sprite_rect(a, frame, anm_sprite(T_CPU_DIGIT0), pr)) {
     char t[16];

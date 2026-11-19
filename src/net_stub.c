@@ -3,6 +3,7 @@
 #include "net.h"
 #include "vs_host.h"
 
+#include <stdio.h>
 #include <string.h>
 
 int net_open(const char *host, int port, uint32_t id) { return (void)host, (void)port, (void)id, -1; }
@@ -31,3 +32,5 @@ void vs_host_poll(double now, const char *name) { (void)now, (void)name; }
 int net_ping_ms(int pcb) { return (void)pcb, -1; }
 void net_set_flash(int off) { (void)off; }
 int net_flash_of(int pcb) { return (void)pcb, 0; }
+void net_log_force(int on) { (void)on; }
+void net_stats_text(char *out, int n) { snprintf(out, (size_t)n, ""); }

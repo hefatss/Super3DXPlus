@@ -124,6 +124,8 @@ typedef struct {
   int title, plate, hp, grade, power, handling, steps, seat;
 } hud_vs_box;
 void hud_set_vs(const hud_vs_box *box, int n);
+/* the rivals' ping under their advantage (NETWORK OPTIONS' PING ON THE HUD): on by default */
+void hud_set_ping(int on);
 /* The 10-in-a-row rivals' lines (Cut::clCutIn): `frames` arcade frames of them, from the
  * race's cut-in info (car_race cut_*); hud_draw draws them. */
 void hud_ten_cutin(const car_race *r, int frames);

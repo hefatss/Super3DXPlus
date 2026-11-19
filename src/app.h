@@ -48,9 +48,13 @@ int app_fullscreen(void);
 void app_set_fullscreen(int on);
 void app_toggle_fullscreen(void);
 void app_window_row(int on);
-/* the Windows player's FIREWALL button in a hosted versus lobby: app_firewall_row(1) gives the screen it; app_firewall_ask is 1 once after it was pressed (the platform then has Windows allow the game through) */
+/* the Windows player's network options rows (ALLOW THROUGH FIREWALL, OPEN LOG FOLDER): app_firewall_row(1) gives the screen them */
 void app_firewall_row(int on);
-int app_firewall_ask(void);
+/* the network options screen: the action it asks of the platform, once (1 allow through the firewall, 2 open the log folder, 3 the diagnostics text to the clipboard), and that text */
+int app_net_act(void);
+const char *app_net_diag(void);
+/* the save folder (the log's) */
+const char *app_save_folder(void);
 /* the BLACK LEVEL option (0 off .. 10): the PC player pulls the picture's blacks down by it (a display or driver that lifts them) */
 int app_black_level(void);
 /* the controller rumble now, 0..1 each: the heavy motor and the light (zero outside a running race; haptic.h) */

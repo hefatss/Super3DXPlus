@@ -89,14 +89,24 @@ static struct {
   uint32_t last_count;
 } St[CAR_LINK_MACHINES];
 static double rtt = -1, ping_at, log_at;
+static long tot_n, tot_lost, tot_late; /* the last race's packets from the others, all machines */
+static double tot_gap_max;
+static int log_forced; /* NETWORK OPTIONS' DETAILED NET LOG */
 static uint32_t tx_count;
 static double ema[CAR_LINK_MACHINES]; /* the age (frames) of each machine's data, smoothed over some packets */
 static int ema_n[CAR_LINK_MACHINES];
 
+void net_log_force(int on) { log_forced = on != 0; }
 int net_log_on(void) {
   static int on = -1;
   if (on < 0) on = getenv("MT3DX_NETLOG") != NULL && getenv("MT3DX_NETLOG")[0] != '0';
-  return on;
+  return on || log_forced;
+}
+
+/* a line for the network options: the last race's packets from the others, those that never came and those that came late, and the longest wait between two */
+void net_stats_text(char *out, int n) {
+  if (!tot_n) snprintf(out, (size_t)n, "NO RACE YET, SO NO PACKET STATISTICS");
+  else snprintf(out, (size_t)n, "LAST RACE: %ld PACKETS, %ld LOST, %ld LATE. LONGEST GAP: %.0f MS", tot_n, tot_lost, tot_late, tot_gap_max);
 }
 
 int net_age_frames(int pcb) { return pcb >= 0 && pcb < CAR_LINK_MACHINES && St[pcb].any ? St[pcb].age_last : -1000; }
@@ -127,9 +137,11 @@ static void stat_race(int pcb, uint32_t count, double t) {
     int d = (int)(int32_t)(count - s->last_count);
     s->gap_sum += gap;
     if (gap > s->gap_max) s->gap_max = gap;
-    if (d > 1) s->lost += d - 1;
-    if (d <= 0) s->late++;
+    if (gap > tot_gap_max) tot_gap_max = gap;
+    if (d > 1) s->lost += d - 1, tot_lost += d - 1;
+    if (d <= 0) s->late++, tot_late++;
   }
+  tot_n++;
   if (!s->n || age < s->age_min) s->age_min = age;
   if (!s->n || age > s->age_max) s->age_max = age;
   ema[pcb] = ema_n[pcb]++ ? ema[pcb] + ((double)age - ema[pcb]) * 0.15 : (double)age;
@@ -368,6 +380,7 @@ int net_take_go(net_go *go) {
   memset(N.rx_new, 0, sizeof N.rx_new);
   memset(N.rx_any, 0, sizeof N.rx_any);
   for (int k = 0; k < CAR_LINK_MACHINES; ++k) N.rx_ping[k] = -1;
+  tot_n = tot_lost = tot_late = 0, tot_gap_max = 0; /* (the statistics of this race) */
   return 1;
 }
 

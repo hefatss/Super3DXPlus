@@ -17,6 +17,8 @@ typedef struct {
 void nat_open(int port);
 /* take the forwarding away again and stop */
 void nat_close(void);
+/* this machine's address on its network (the one a UDP socket would send from; nothing is sent): 0 and the dotted text in out, -1 unknown */
+int nat_local_ip(char out[16]);
 const nat_info *nat_status(void);
 
 #endif

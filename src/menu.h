@@ -114,6 +114,8 @@ typedef struct {
   int rum[4];   /* the controller vibration (MENU_RUMBLE), each in tenths 0..10: overall, wall hits, expansion joints, tyre slip */
   int rum_row;  /* the vibration screen's row */
   int disp_row; /* the display options screen's row (MENU_DISPLAY, PC) */
+  int net_row, net_ping, net_log, net_act; /* the network options screen (MENU_NETWORK): its row, PING ON THE HUD, DETAILED NET LOG (both saved), and the action it asks of the platform */
+  char net_lines[6][72]; /* its connection lines, filled by the app */
   int ten_beep; /* the 10 out run's beep as the rival's line is near (HUD OPTIONS), on by default */
   int ten_set; /* the 10 out run's soundtrack chosen on the BGM select: 0..4 (app.c's TEN_LOOP rows), 5 none */
   signed char ten_result[10][11];
@@ -219,7 +221,7 @@ typedef struct {
    * Retina iPads' 2048x1536 (1), from the next start (main.m reads it from the options) */
   int res_row, hires, res_phone;
   int black_lv; /* the PC player's BLACK LEVEL row (0 off .. 10): the picture's blacks pulled down, for a display or driver that lifts them */
-  int fw_row; /* the Windows player's FIREWALL button in the versus lobby (app_firewall_row) */
+  int fw_row; /* the Windows player's rows in the network options: the firewall and the log folder (app_firewall_row) */
   int win_row, fullscreen; /* the PC player's WINDOW MODE row (win_row), and the mode: 0 windowed, 1 fullscreen */
   /* the gear key pressed; the maker under the cursor meanwhile; the screen it was pressed on
    * (the maker select or the SAVE DATA screen) */
@@ -446,7 +448,6 @@ typedef struct {
     char name[MENU_VS_PLAYERS][17], car[MENU_VS_PLAYERS][32];
     short glyph[MENU_VS_PLAYERS][5]; /* the names' own characters (namedb.h's, -1 past the end; none from an older build) */
     unsigned char mismatch[MENU_VS_PLAYERS]; /* a player on another build (app.c VS_BUILD): no start with one */
-    int fw_ask;             /* the FIREWALL button was pressed: the platform asks Windows to allow the game through (app_firewall_ask clears it) */
     int ready, auto_ready;  /* this player is ready for the next round (a click each round; the host's START waits for every other player), and clicks it by itself (AUTO READY, saved) */
     unsigned char ready_of[MENU_VS_PLAYERS]; /* each player's, from its status */
     int racing[MENU_VS_PLAYERS];
@@ -532,7 +533,7 @@ enum { MENU_MOVIE, MENU_TITLE, MENU_RANKING, MENU_LOGO, MENU_PROLOGUE, MENU_STAR
        MENU_ST_LEVEL, MENU_ST_RIVAL, MENU_PRE, MENU_ST_TUNE, MENU_TEN_COURSE, MENU_TEN_LEVEL,
        MENU_TG_GET, MENU_TG_AERO, MENU_TG_PART, MENU_TG_WEAR, MENU_OPTION, MENU_SAVE, MENU_HAVE, MENU_GARAGE,
        MENU_CARD, MENU_LVUP, MENU_ST_EFF, MENU_TG_WHEEL, MENU_TG_SELECT, MENU_TG_MAKER, MENU_NAME,
-       MENU_TG_VINYL, MENU_VS, MENU_VS_SEL, MENU_VS_AREA, MENU_VS_MATCH, MENU_SHOGO, MENU_VS_STAR, MENU_INFO, MENU_LAYOUT, MENU_POEM, MENU_BONUS, MENU_CARDSET, MENU_BINDINGS, MENU_HUDOPT, MENU_VOLUME, MENU_PORTINFO, MENU_RUMBLE, MENU_MILAGE, MENU_DISPLAY };
+       MENU_TG_VINYL, MENU_VS, MENU_VS_SEL, MENU_VS_AREA, MENU_VS_MATCH, MENU_SHOGO, MENU_VS_STAR, MENU_INFO, MENU_LAYOUT, MENU_POEM, MENU_BONUS, MENU_CARDSET, MENU_BINDINGS, MENU_HUDOPT, MENU_VOLUME, MENU_PORTINFO, MENU_RUMBLE, MENU_MILAGE, MENU_DISPLAY, MENU_NETWORK };
 enum { MENU_GAME_STORY, MENU_GAME_TEN, MENU_GAME_TA, MENU_GAME_VS };
 
 /* The cars the car select shows in 3D this frame (the carousel, or the colour turntable),

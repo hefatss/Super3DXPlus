@@ -1045,6 +1045,8 @@ static int options_load(void) {
   if (n >= 3 && fscanf(f, " black %d", &bl) == 1) G.menu.black_lv = bl < 0 ? 0 : bl > 10 ? 10 : bl;
   int va = 0; /* (the versus lobby's AUTO READY, after it) */
   if (n >= 3 && fscanf(f, " vsauto %d", &va) == 1) G.menu.vs.auto_ready = va != 0;
+  int no[2] = { 1, 0 }; /* (PING ON THE HUD, DETAILED NET LOG: after it) */
+  if (n >= 3 && fscanf(f, " netopt %d %d", &no[0], &no[1]) == 2) G.menu.net_ping = no[0] != 0, G.menu.net_log = no[1] != 0;
   fclose(f);
   if (n < 3) return 0;
   G.menu.hires = hires != 0;
@@ -1061,8 +1063,8 @@ static int options_load(void) {
 }
 
 static void options_save(void) {
-  static int last[48] = { -1 };
-  int now[48] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
+  static int last[50] = { -1 };
+  int now[50] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
                   G.menu.bm_on, G.menu.hd_tex, G.menu.bloom_on, G.menu.ssao_on, G.menu.wet_on, G.menu.paint_on,
                   G.menu.aa4, G.menu.hires };
   for (int g = 0; g < 3; ++g)
@@ -1078,6 +1080,7 @@ static void options_save(void) {
   now[45] = G.menu.milage_on;
   now[46] = G.menu.black_lv;
   now[47] = G.menu.vs.auto_ready;
+  now[48] = G.menu.net_ping, now[49] = G.menu.net_log;
   if (G.options_global && !memcmp(now, last, sizeof now)) return;
   char path[1100];
   snprintf(path, sizeof path, "%s/option", G.save_dir);
@@ -1102,6 +1105,7 @@ static void options_save(void) {
   fprintf(f, "milage %d\n", now[45]);
   fprintf(f, "black %d\n", now[46]);
   fprintf(f, "vsauto %d\n", now[47]);
+  fprintf(f, "netopt %d %d\n", now[48], now[49]);
   fclose(f);
   memcpy(last, now, sizeof last);
   G.options_global = 1;
@@ -1789,11 +1793,6 @@ void app_set_fullscreen(int on) {
 void app_toggle_fullscreen(void) { app_set_fullscreen(!G.menu.fullscreen); }
 void app_window_row(int on) { G.menu.win_row = on != 0; }
 void app_firewall_row(int on) { G.menu.fw_row = on != 0; }
-int app_firewall_ask(void) {
-  int a = G.menu.vs.fw_ask;
-  G.menu.vs.fw_ask = 0;
-  return a;
-}
 int app_black_level(void) { return G.menu.black_lv; }
 /* the pad's rumble now (haptic.c): nothing outside a running race */
 void app_rumble(float *low, float *high) {
@@ -3520,6 +3519,44 @@ static void vs_ip_save(void) {
   fclose(f);
 }
 
+/* The NETWORK OPTIONS screen's connection lines (menu.h net_lines) and the diagnostics text for the clipboard: the versus version, this machine's address, the
+ * hosting state, the connection and its ping, the last race's lost and late packets. */
+static void net_info_fill(menu_state *m) {
+  const net_lobby *l = net_lobby_now();
+  char ip[16] = "", stats[96];
+  nat_local_ip(ip);
+  net_stats_text(stats, sizeof stats);
+  snprintf(m->net_lines[0], sizeof m->net_lines[0], "VERSUS VERSION %d (ALL PLAYERS MUST MATCH)", VS_BUILD);
+  snprintf(m->net_lines[1], sizeof m->net_lines[1], "YOUR ADDRESS: %s", ip[0] ? ip : "UNKNOWN");
+  if (m->vs.hosting) snprintf(m->net_lines[2], sizeof m->net_lines[2], m->vs.invite[0] ? "HOSTING ONLINE. ROOM CODE: %s" : "HOSTING ON THE LAN", m->vs.invite);
+  else snprintf(m->net_lines[2], sizeof m->net_lines[2], "NOT HOSTING");
+  if (net_is_open() && l->connected) {
+    double rtt = net_rtt_ms();
+    if (rtt >= 0) snprintf(m->net_lines[3], sizeof m->net_lines[3], "CONNECTED WITH %d PLAYERS. PING TO HOST: %.0f MS", l->n, rtt);
+    else snprintf(m->net_lines[3], sizeof m->net_lines[3], "CONNECTED WITH %d PLAYERS. PING NOT MEASURED YET", l->n);
+  } else {
+    snprintf(m->net_lines[3], sizeof m->net_lines[3], "NOT CONNECTED");
+  }
+  snprintf(m->net_lines[4], sizeof m->net_lines[4], "%s", stats);
+  snprintf(m->net_lines[5], sizeof m->net_lines[5], "%s", m->vs.natnote[0] ? m->vs.natnote : "");
+}
+
+const char *app_net_diag(void) {
+  static char text[1400];
+  net_info_fill(&G.menu);
+  int n = snprintf(text, sizeof text, "Super3DX+ versus diagnostics\n");
+  for (int i = 0; i < 6; ++i)
+    if (G.menu.net_lines[i][0]) n += snprintf(text + n, sizeof text - (size_t)n, "%s\n", G.menu.net_lines[i]);
+  return text;
+}
+
+/* the screen's pending action for the platform (1 allow through the firewall, 2 open the log folder, 3 diagnostics to the clipboard), once */
+int app_net_act(void) {
+  int a = G.menu.net_act;
+  G.menu.net_act = 0;
+  return a;
+}
+
 /* everything of the versus off: the client, the host, the LAN's search */
 static void vs_off(void) {
   if (net_is_open() || vs_host_is_open()) fprintf(stderr, "versus: off (screen %d, state %d)\n", G.menu.screen, G.menu.vs.state);
@@ -3815,7 +3852,7 @@ static void vs_menu(void) {
       if (m->vs.mismatch[i]) {
         char why[64];
         int theirs = pl->profile_len >= VS_PROFILE && pl->profile[VS_PROFILE_BUILD] == 'W' ? pl->profile[VS_PROFILE_BUILD + 1] : 0;
-        snprintf(why, sizeof why, "VERSION MISMATCH: THEIRS %d, YOURS %d. UPDATE", theirs, VS_BUILD);
+        snprintf(why, sizeof why, "VERSION MISMATCH (THEIRS %d, YOURS %d). PLEASE UPDATE", theirs, VS_BUILD);
         vs_ascii(m->vs.car[i], sizeof m->vs.car[i], why);
         static int said[NET_PLAYERS];
         if (i < NET_PLAYERS && said[i] != theirs + 1) said[i] = theirs + 1, fprintf(stderr, "versus: player %d is on protocol %d, this build is on %d: no race together\n", i, theirs, VS_BUILD);
@@ -4249,7 +4286,7 @@ static void menu_frame(float dt, double frame_start) {
   if (vs_waiting && G.vs_wait >= VS_WAIT_MAX) { /* the others never loaded it: no race alone, everyone back to try again */
     fprintf(stderr, "versus: the others still loading after %d s, back to the lobby\n", VS_WAIT_MAX / 60);
     G.vs_wait = 0;
-    vs_timeout("THE RACE TIMED OUT. PLEASE TRY AGAIN");
+    vs_timeout("THE RACE TIMED OUT. PLEASE TRY AGAIN.");
     return;
   }
   G.menu.vs.wait_others = vs_waiting;
@@ -4814,6 +4851,9 @@ static void car_interp(car_state *o, const car_state *prev, const car_state *cur
 }
 
 void app_frame(float dt) {
+  net_log_force(G.menu.net_log);
+  hud_set_ping(G.menu.net_ping);
+  if (G.menu.screen == MENU_NETWORK && G.in_menu && !(G.menu.t % 30)) net_info_fill(&G.menu); /* (the network options' lines, twice a second) */
   double frame_start = now_ms();
   G.menu.sharp_on = G.menu.ao_on = G.menu.bloom_on = G.menu.ssao_on = 0; /* (the FSR sharpening, the baked ambient occlusion, the bloom and the SSAO are not offered: off, whatever an old options file says) */
   { /* the textures' sharpness (HUD OPTIONS; save_dir/graphics's lodbias or WMMT_LODBIAS keep their say on a test) */
@@ -4876,7 +4916,7 @@ void app_frame(float dt) {
     if (G.vs_prog_t == 0 || G.car.lamp_tick != G.vs_prog_tick) G.vs_prog_tick = G.car.lamp_tick, G.vs_prog_t = t;
     if (t - G.vs_prog_t > VS_HANG || (net_is_open() && net_silence(t) > VS_HANG)) {
       fprintf(stderr, "versus: the race stood still for %.0f s (heard from the host %.0f s ago), back to the lobby\n", t - G.vs_prog_t, net_silence(t));
-      G.vs_closed_msg = "THE RACE TIMED OUT. PLEASE TRY AGAIN";
+      G.vs_closed_msg = "THE RACE TIMED OUT. PLEASE TRY AGAIN.";
       G.vs_closed = 1;
     }
   }
@@ -5482,4 +5522,12 @@ void app_frame(float dt) {
   frame++;
 }
 
-void app_vs_leave(void) { vs_off(); }
+const char *app_save_folder(void) { return G.save_dir; }
+/* the game closing: the versus off, and the server address typed or saved for the next time forgotten (a room code or an address that stays in the field) */
+void app_vs_leave(void) {
+  vs_off();
+  char path[1200];
+  snprintf(path, sizeof path, "%s/vs_server", G.save_dir);
+  remove(path);
+  G.menu.vs.ip[0] = 0;
+}

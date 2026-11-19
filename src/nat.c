@@ -148,6 +148,8 @@ static int local_ip(char out[16]) {
   return ok ? 0 : -1;
 }
 
+int nat_local_ip(char out[16]) { return net_sock_init() == 0 ? local_ip(out) : -1; }
+
 /* SSDP: the first Internet Gateway Device to answer; its description's URL */
 static int ssdp(char *location, int max, const char *mine) {
   net_fd fd = socket(AF_INET, SOCK_DGRAM, 0);

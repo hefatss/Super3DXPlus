@@ -2232,9 +2232,9 @@ static void draw_layout(const menu_state *m, int clock, float screen_w, float sc
  * each time (the graphics rows the build offers: Android's, an iPad's resolution). The touch controls are the CONTROLS screen's. ---- */
 static int option_touch(void) { return hud_style() == HUD_STYLE_TOUCH; }
 
-enum { OK_SWITCH, OK_MIP, OK_RES, OK_AA, OK_SUB, OK_INFO, OK_RUMBLE, OK_PCT, OK_WIN, OK_DISPLAY };
+enum { OK_SWITCH, OK_MIP, OK_RES, OK_AA, OK_SUB, OK_INFO, OK_RUMBLE, OK_PCT, OK_WIN, OK_DISPLAY, OK_NET, OK_ACT };
 #define IS_RES(r) ((r)->kind == OK_RES || (r)->kind == OK_WIN) /* a choice of two, the value the chip (0 the left) */
-#define IS_SUB(r) ((r)->kind == OK_SUB || (r)->kind == OK_INFO || (r)->kind == OK_RUMBLE || (r)->kind == OK_DISPLAY) /* a row that is a button to another screen */
+#define IS_SUB(r) ((r)->kind == OK_SUB || (r)->kind == OK_INFO || (r)->kind == OK_RUMBLE || (r)->kind == OK_DISPLAY || (r)->kind == OK_NET || (r)->kind == OK_ACT) /* a row that is a button to another screen */
 typedef struct { const char *name, *note; int kind; int *v; } orow;
 
 static const char *const MIP_NAME[4] = { "SOFT", "NORMAL", "SHARP", "SHARPER" };
@@ -2245,7 +2245,7 @@ float menu_mip_bias(const menu_state *m) { return MIP_BIAS[m->mip >= 0 && m->mip
 #define OPTL_X_ON 330.0f
 #define OPTL_GAP 10.0f
 #define OPTL_DY 28.0f /* the options' rows (25 with more than 9 of them, so the last still clears the note); the debug options' are further apart */
-static float optl_dy(int n) { return n > 9 ? 25.0f : OPTL_DY; }
+static float optl_dy(int n) { return n > 12 ? 20.5f : n > 9 ? 25.0f : OPTL_DY; }
 #define OPTL_DY_DEBUG 36.0f
 
 /* a row's chip c: its left edge and width */
@@ -2254,12 +2254,12 @@ static void optl_chip(const orow *r, int c, float *x, float *w) {
   *w = w0, *x = OPTL_X_ON + (w0 + OPTL_GAP) * (float)c;
 }
 
-static int option_rows(menu_state *m, orow r[12]) {
+static int option_rows(menu_state *m, orow r[16]) {
   int n = 0;
   r[n++] = (orow){ "BACK MIRROR", "THE MIRROR SHOWN IN BUMPER CAMERA", OK_SWITCH, &m->bm_on };
   r[n++] = (orow){ "TEXTURES", "HOW SHARP THE ROAD'S AND THE SCENERY'S TEXTURES STAY IN THE DISTANCE", OK_MIP, &m->mip };
-  r[n++] = (orow){ "REFLECTION", "THE CARS' PAINT AND GLASS REFLECT THE SCREEN AND THE STREET LIGHTS, AS IN THE ARCADE", OK_SWITCH, &m->over_on };
-  r[n++] = (orow){ "MILEAGE SCREEN", "THE MILEAGE TALLY AFTER A FINISHED SINGLE PLAYER GAME (OFF SKIPS IT)", OK_SWITCH, &m->milage_on };
+  r[n++] = (orow){ "REFLECTION", "CAR PAINT AND GLASS REFLECT THEIR SURROUNDINGS, AS IN THE ARCADE", OK_SWITCH, &m->over_on };
+  r[n++] = (orow){ "MILEAGE SCREEN", "SHOW THE MILEAGE TALLY AFTER A SINGLE PLAYER GAME", OK_SWITCH, &m->milage_on };
   if (m->hq_rows) {
     r[n++] = (orow){ "HD TEXTURES", "USE THE OPTIONAL UPSCALED TEXTURES", OK_SWITCH, &m->hd_tex };
     r[n++] = (orow){ "WET ROAD", "ADDS SCREENSPACE REFLECTIONS TO THE ROAD SURFACE", OK_SWITCH, &m->wet_on };
@@ -2268,7 +2268,8 @@ static int option_rows(menu_state *m, orow r[12]) {
   if (m->res_row) r[n++] = (orow){ "RESOLUTION", "TAKES EFFECT AT THE NEXT START", OK_RES, &m->hires };
   if (m->win_row) r[n++] = (orow){ "WINDOW MODE", "WINDOWED OR FULLSCREEN (F11 OR ALT+ENTER ANYTIME)", OK_WIN, &m->fullscreen };
   r[n++] = (orow){ "VIBRATION", "CONTROLLER RUMBLE: WALL HITS, EXPANSION JOINTS AND TIRE SLIP", OK_RUMBLE, NULL };
-  if (m->win_row) r[n++] = (orow){ "DISPLAY OPTIONS", "BLACK LEVEL, FOR A PICTURE THAT LOOKS GREY AND WASHED OUT", OK_DISPLAY, NULL };
+  if (m->win_row) r[n++] = (orow){ "DISPLAY OPTIONS", "ADJUST THE PICTURE IF IT LOOKS WASHED OUT", OK_DISPLAY, NULL };
+  r[n++] = (orow){ "NETWORK OPTIONS", "TOOLS FOR FIXING VERSUS CONNECTION PROBLEMS", OK_NET, NULL };
   r[n++] = (orow){ "DEBUG OPTIONS", "ADDITIONAL INFORMATION READOUTS", OK_SUB, NULL };
   r[n++] = (orow){ "INFORMATION", "ABOUT THIS PORT", OK_INFO, NULL };
   return n;
@@ -2370,7 +2371,7 @@ static void draw_optlist(const menu_state *m, const orow *rows, int n, int sel, 
       int lit = o->kind == OK_MIP || o->kind == OK_PCT || IS_SUB(o) ? 1 : IS_RES(o) ? on == c : on == !c;
       hud_ui_rect(x * k, (y - 0.5f * chip_h) * k, w * k, chip_h * k, lit ? 0.35f : 0.0f, lit ? 0.15f : 0.0f, 0.0f, lit ? 0.9f : 0.4f);
       if (lit) hud_ui_rect(x * k, (y + 0.5f * chip_h - 2.0f) * k, w * k, 2.0f, 1.0f, 0.42f, 0.05f, 1.0f);
-      const char *s = IS_SUB(o) ? "OPEN >" : o->kind == OK_MIP ? (c ? "SHARPER" : "SOFTER") : o->kind == OK_PCT ? (c ? "MORE" : "LESS") : o->kind == OK_WIN ? (c ? "FULLSCREEN" : "WINDOWED") : o->kind == OK_RES ? (m->res_phone ? (c ? "960 X 640" : "480 X 320") : (c ? "2048 X 1536" : "1024 X 768"))
+      const char *s = IS_SUB(o) ? (o->kind == OK_ACT ? "RUN" : "OPEN >") : o->kind == OK_MIP ? (c ? "SHARPER" : "SOFTER") : o->kind == OK_PCT ? (c ? "MORE" : "LESS") : o->kind == OK_WIN ? (c ? "FULLSCREEN" : "WINDOWED") : o->kind == OK_RES ? (m->res_phone ? (c ? "960 X 640" : "480 X 320") : (c ? "2048 X 1536" : "1024 X 768"))
                     : o->kind == OK_AA ? (c ? "2X" : "4X") : c ? "OFF" : "ON";
       float px = o->kind == OK_MIP || IS_RES(o) || o->kind == OK_PCT ? 1.8f : chip_px;
       hud_ui_text(s, (x + 0.5f * w) * k - 0.5f * hud_ui_text_width(s, px), y * k - 3.5f * px, px, 1, 1, 1, lit ? 1.0f : 0.45f);
@@ -2418,7 +2419,7 @@ static void rumble_enter(menu_state *m) {
 
 /* back to the game options, with the cursor on the row of the screen just left (a button: OK_SUB, OK_INFO or OK_RUMBLE) */
 static void option_back_to(menu_state *m, int kind) {
-  orow o[12];
+  orow o[16];
   int n = option_rows(m, o);
   option_enter(m);
   for (int i = 0; i < n; ++i)
@@ -2452,7 +2453,7 @@ static void draw_rumble(const menu_state *m, int clock, int bars, float screen_w
 
 /* the display options screen (MENU_DISPLAY, PC): the black level, and a bar of greys to see it on */
 static int display_rows(menu_state *m, orow r[4]) {
-  r[0] = (orow){ "BLACK LEVEL", "PULLS DOWN BLACKS THAT LOOK GREY AND WASHED OUT (0% IS OFF, 50% FIXES LIMITED RANGE)", OK_PCT, &m->black_lv };
+  r[0] = (orow){ "BLACK LEVEL", "DARKENS BLACKS THAT LOOK GREY. 0% IS OFF, AND 50% CORRECTS A LIMITED RANGE DISPLAY", OK_PCT, &m->black_lv };
   return 1;
 }
 
@@ -2495,16 +2496,70 @@ static void draw_display(const menu_state *m, int clock, int bars, float screen_
     float g = (float)i / 63.0f;
     hud_ui_rect((x0 + w * (float)i / 64.0f) * k, (y0 + 128.0f) * k, w / 64.0f * k + 1.0f, 36.0f * k, g, g, g, 1.0f);
   }
-  hud_ui_text("THE DARKEST BARS SHOULD BE", x0 * k, (y0 + 178.0f) * k, 1.7f, 0.85f, 0.85f, 0.85f, 1);
-  hud_ui_text("TOLD APART, THE FIRST TRUE BLACK", x0 * k, (y0 + 192.0f) * k, 1.7f, 0.85f, 0.85f, 0.85f, 1);
+  hud_ui_text("YOU SHOULD BE ABLE TO TELL THE DARKEST", x0 * k, (y0 + 178.0f) * k, 1.7f, 0.85f, 0.85f, 0.85f, 1);
+  hud_ui_text("BARS APART, AND THE FIRST SHOULD BE BLACK", x0 * k, (y0 + 192.0f) * k, 1.7f, 0.85f, 0.85f, 0.85f, 1);
   hud_ui_end();
   /* and a frame of the game itself to judge it by: its shadows and dark metal should not look grey */
   int ref = anm_sprite(T_BLACKREF);
   if (ref >= 0) anm_draw_part(ref, (float[4]){ 0, 0, (float)anm_sprite_width(ref), (float)anm_sprite_height(ref) }, (float[4]){ 344, 170, 608, 368 }, 1.0f);
 }
 
+/* the network options screen (MENU_NETWORK): what helps when versus will not connect: the firewall, the log folder, the diagnostics for a bug report, the ping on the
+ * HUD and the detailed net log; the connection's live numbers below the rows (the app fills m->net_lines) */
+static int NET_ACT_ID[3] = { 1, 2, 3 }; /* app_net_act's: 1 firewall, 2 log folder, 3 diagnostics to the clipboard */
+static int net_rows(menu_state *m, orow r[8]) {
+  int n = 0;
+  if (m->fw_row) r[n++] = (orow){ "ALLOW THROUGH FIREWALL", "ALLOWS THE GAME THROUGH THE WINDOWS FIREWALL AGAIN. USE IT IF FRIENDS CAN'T JOIN YOUR GAME", OK_ACT, &NET_ACT_ID[0] };
+  if (m->fw_row) r[n++] = (orow){ "OPEN LOG FOLDER", "OPENS THE FOLDER WITH LOG.TXT, TO ATTACH TO A BUG REPORT", OK_ACT, &NET_ACT_ID[1] };
+  if (m->win_row) r[n++] = (orow){ "COPY DIAGNOSTICS", "COPIES THE CONNECTION DETAILS BELOW TO THE CLIPBOARD", OK_ACT, &NET_ACT_ID[2] };
+  r[n++] = (orow){ "PING ON THE HUD", "SHOWS EACH RIVAL'S PING DURING VERSUS RACES", OK_SWITCH, &m->net_ping };
+  r[n++] = (orow){ "DETAILED NET LOG", "RECORDS EXTRA NETWORK DETAILS IN LOG.TXT. THE LOG CAN GET LARGE", OK_SWITCH, &m->net_log };
+  return n;
+}
+#define NET_DY 28.0f
+
+static void net_enter(menu_state *m) {
+  go(m, MENU_NETWORK);
+  m->net_row = 0;
+}
+
+static void net_step(menu_state *m, const menu_in *in) {
+  if (in->back) {
+    snd_menu(SND_CANCEL);
+    option_back_to(m, OK_NET);
+    return;
+  }
+  orow r[8];
+  int n = net_rows(m, r);
+  if (optl_step(m, r, n, &m->net_row, in)) {
+    snd_menu(SND_SELECT);
+    if (m->net_row >= 0 && m->net_row < n && r[m->net_row].kind == OK_ACT) m->net_act = *r[m->net_row].v;
+  }
+}
+
+static void draw_net(const menu_state *m, int clock, int bars, float screen_w, float screen_h) {
+  const float k = 1.6f;
+  draw_back(ID.bg, clock % 600, 1);
+  anm_draw(ID.line, clock % anm_frames(ID.line), 1);
+  draw_bottom(bars, 1);
+  int tb = draw_title_bar(bars, 8);
+  hud_ui_begin(screen_w, screen_h);
+  if (!tb) hud_ui_text("NETWORK OPTIONS", 24.0f * k, 40.0f * k, 4.0f, 1, 1, 1, 1);
+  hud_ui_end();
+  orow r[8];
+  int n = net_rows((menu_state *)m, r);
+  draw_optlist(m, r, n, m->net_row, NET_DY, screen_w, screen_h);
+  /* the connection's numbers (versus version, addresses, the ping, the last race's lost packets) */
+  hud_ui_begin(screen_w, screen_h);
+  float y = OPTL_Y0 + NET_DY * (float)n + 4.0f;
+  hud_ui_text("CONNECTION", 20.0f * k, y * k, 2.2f, 1.0f, 0.55f, 0.15f, 1);
+  for (int i = 0; i < 6; ++i)
+    if (m->net_lines[i][0]) hud_ui_text(m->net_lines[i], 20.0f * k, (y + 15.0f + 12.5f * (float)i) * k, 1.8f, 0.9f, 0.9f, 0.9f, 1);
+  hud_ui_end();
+}
+
 static void option_step(menu_state *m, const menu_in *in) {
-  orow r[12];
+  orow r[16];
   int n = option_rows(m, r);
   if (optl_step(m, r, n, &m->focus, in)) {
     snd_menu(SND_SELECT);
@@ -2512,6 +2567,7 @@ static void option_step(menu_state *m, const menu_in *in) {
     if (kind == OK_INFO) portinfo_enter(m);
     else if (kind == OK_RUMBLE) rumble_enter(m);
     else if (kind == OK_DISPLAY) display_enter(m);
+    else if (kind == OK_NET) net_enter(m);
     else hudopt_enter(m);
   }
 }
@@ -2576,7 +2632,7 @@ static void draw_option(const menu_state *m, int clock, int bars, float screen_w
   anm_swap title = { anm_sprite(T_TOPBAR_MES), anm_sprite(OPT_TEXT + O_TITLE) };
   draw_topbar(bars, 1, &title);
   draw_bottom(bars, 1);
-  orow r[12];
+  orow r[16];
   int n = option_rows((menu_state *)m, r);
   draw_optlist(m, r, n, m->focus, optl_dy(n), screen_w, screen_h);
 }
@@ -7387,7 +7443,7 @@ void menu_init(menu_state *m) {
   m->zone = 0;
   m->zones = 1;
   menu_garage_reset(m);
-  m->gyro = 0, m->gyro_sens = 5, m->over_on = 1, m->milage_on = 1, m->black_lv = 0, m->sharp_on = 0, m->ao_on = 0, m->bm_on = 1, m->readout_on = 0, m->fps_on = 0, m->phys_on = 0, m->filter_on = 1, m->filter_smooth = 10, m->filter_counter = 5, m->btn_steer = 10;
+  m->gyro = 0, m->gyro_sens = 5, m->over_on = 1, m->milage_on = 1, m->black_lv = 0, m->net_ping = 1, m->net_log = 0, m->sharp_on = 0, m->ao_on = 0, m->bm_on = 1, m->readout_on = 0, m->fps_on = 0, m->phys_on = 0, m->filter_on = 1, m->filter_smooth = 10, m->filter_counter = 5, m->btn_steer = 10;
   for (int g = 0; g < 3; ++g) m->key_k[g] = 100, m->key_dx[g] = m->key_dy[g] = 0;
   m->poem = -1;
   for (int i = 0; i < 6; ++i) m->vol[i] = 10; /* (the volume mixer, full, but the overall level at half) */
@@ -9944,7 +10000,7 @@ void menu_name_ascii(const menu_state *m, char *out, int n) {
 #define VS_TEXT 107000
 #define VS_ICON 107010
 #define VS_LINE 107020
-enum { VS_KEYS = 12, VS_CONNECT = VS_KEYS, VS_RAMP_L, VS_RAMP_R, VS_KM_L, VS_KM_R, VS_START, VS_HOSTNET /* (online: host a game here) */, VS_AUTO /* (a player's: ready by itself each round) */, VS_FIREWALL /* (Windows, hosting: allow the game through the firewall again) */, VS_BUTTONS };
+enum { VS_KEYS = 12, VS_CONNECT = VS_KEYS, VS_RAMP_L, VS_RAMP_R, VS_KM_L, VS_KM_R, VS_START, VS_HOSTNET /* (online: host a game here) */, VS_AUTO /* (a player's: ready by itself each round) */, VS_BUTTONS };
 #define VS_LEFT 60.0f
 #define VS_RIGHT 520.0f
 #define VS_RIGHT_W 460.0f
@@ -9968,7 +10024,6 @@ static void vs_button(const menu_state *m, int b, float r[4]) {
     { VS_RIGHT, 568, VS_RIGHT_W, 58 }, /* START */
     { VS_LEFT + 210, 512, 200, 56 },   /* HOST ONLINE */
     { VS_LEFT, 568, 410, 44 },         /* AUTO READY */
-    { VS_LEFT, 420, 410, 44 },         /* FIREWALL */
   };
   memcpy(r, R[b - VS_KEYS], sizeof R[0]);
   if (b == VS_CONNECT && m->vs.kind == MENU_VS_NET && m->vs.state == MENU_VS_OFF) r[2] = 200; /* (the address's CONNECT leaves room for HOST ONLINE) */
@@ -10001,7 +10056,6 @@ static int vs_visible(const menu_state *m, int b) {
   if (b < VS_KEYS && m->vs.state != MENU_VS_OFF) return 0;
   if (b < VS_KEYS && m->vs.kind != MENU_VS_NET && b >= m->vs.n_found) return 0;
   if (b == VS_HOSTNET) return m->vs.kind == MENU_VS_NET && m->vs.state == MENU_VS_OFF;
-  if (b == VS_FIREWALL) return m->fw_row && m->vs.hosting && m->vs.state == MENU_VS_LOBBY;
   if (b == VS_START || b == VS_AUTO) return m->vs.state == MENU_VS_LOBBY && (b == VS_START || m->vs.me != m->vs.host); /* (a player's READY takes the host's START's place) */
   if (b > VS_CONNECT && !vs_host(m)) return 0;
   return b != VS_RAMP_L && b != VS_RAMP_R; /* the area is voted (MENU_VS_AREA) */
@@ -10072,9 +10126,6 @@ static void vs_step(menu_state *m, const menu_in *in) {
     m->vs.km += b == VS_KM_L ? -1 : 1;
     m->vs.km = m->vs.km < 1 ? 1 : m->vs.km > 50 ? 50 : m->vs.km;
     snd_menu(SND_CURSOR);
-  } else if (b == VS_FIREWALL) { /* Windows asks once when a program first listens and remembers a No: this asks again, with an admin prompt */
-    m->vs.fw_ask = 1;
-    snd_menu(SND_SELECT);
   } else if (b == VS_AUTO) { /* AUTO READY: the old way, every round ready by itself */
     m->vs.auto_ready = !m->vs.auto_ready;
     if (m->vs.auto_ready) m->vs.ready = 1;
@@ -10266,20 +10317,14 @@ static void draw_vs(const menu_state *m, int clock, int bars, float screen_w, fl
     }
     ready &= !waiting && !mism;
     hud_ui_button(r[0], r[1], r[2], r[3], vs_lit(m, VS_START));
-    vs_centred(ready ? "START" : m->vs.n < 2 ? "WAITING FOR PLAYERS" : waiting ? "WAITING FOR READY" : "WAITING FOR THE RACE", r, ready ? 5.0f : 3.0f, 1, 1, 1,
+    vs_centred(ready ? "START" : m->vs.n < 2 ? "WAITING FOR PLAYERS" : waiting ? "WAITING FOR PLAYERS TO READY UP" : "WAITING FOR THE RACE", r, ready ? 5.0f : 3.0f, 1, 1, 1,
                ready ? 0.95f : 0.5f);
   } else if (m->vs.state == MENU_VS_LOBBY) { /* a player: READY (the host starts once every player is), and the old way as an option */
     hud_ui_button(r[0], r[1], r[2], r[3], vs_lit(m, VS_START));
-    vs_centred(m->vs.ready ? "READY (CLICK TO CANCEL)" : "READY", r, m->vs.ready ? 3.0f : 5.0f, m->vs.ready ? 0.5f : 1.0f, 1, m->vs.ready ? 0.4f : 1.0f, 0.95f);
+    vs_centred(m->vs.ready ? "READY - CLICK TO CANCEL" : "READY", r, m->vs.ready ? 3.0f : 5.0f, m->vs.ready ? 0.5f : 1.0f, 1, m->vs.ready ? 0.4f : 1.0f, 0.95f);
     vs_button(m, VS_AUTO, r);
     hud_ui_button(r[0], r[1], r[2], r[3], vs_lit(m, VS_AUTO));
     vs_centred(m->vs.auto_ready ? "AUTO READY: ON" : "AUTO READY: OFF", r, 2.6f, 1, 1, 1, 0.95f);
-  }
-  if (vs_visible(m, VS_FIREWALL)) { /* hosting on Windows: friends cannot join if the firewall said no */
-    vs_button(m, VS_FIREWALL, r);
-    hud_ui_button(r[0], r[1], r[2], r[3], vs_lit(m, VS_FIREWALL));
-    vs_centred("ALLOW THROUGH FIREWALL", r, 2.6f, 1, 1, 1, 0.95f);
-    hud_ui_text("IF NO ONE CAN JOIN: ASKS WINDOWS AGAIN", VS_LEFT, 468, 1.8f, 0.85f, 0.85f, 0.85f, 0.9f);
   }
   hud_ui_end();
   /* the names as the card has them, in font 5's glyphs (over the rows the UI drew; the UI's
@@ -10926,6 +10971,11 @@ static int menu_pointer(const menu_state *m, menu_in *in) {
     optl_pointer(m, in, r, display_rows((menu_state *)m, r), OPTL_DY_DEBUG);
     return 1;
   }
+  if (m->screen == MENU_NETWORK) {
+    orow r[8];
+    optl_pointer(m, in, r, net_rows((menu_state *)m, r), NET_DY);
+    return 1;
+  }
   if (m->screen == MENU_BINDINGS && bind_touch(m)) {
     touchctl_pointer(m, in);
     return 1;
@@ -10984,7 +11034,7 @@ static int menu_pointer(const menu_state *m, menu_in *in) {
     return 1;
   }
   if (m->screen == MENU_OPTION) { /* a row and the chip tapped on it */
-    orow r[12];
+    orow r[16];
     { int on_ = option_rows((menu_state *)m, r); optl_pointer(m, in, r, on_, optl_dy(on_)); }
     return 1;
   }
@@ -11568,6 +11618,10 @@ static void step(menu_state *m) {
     display_step(m, &in);
     return;
   }
+  if (m->screen == MENU_NETWORK) {
+    net_step(m, &in);
+    return;
+  }
   if (m->screen == MENU_SETTING) {
     if (m->vs.tuning && m->vs.tune_timer > 0) m->vs.tune_timer--;
     if (setting_step(m, &in)) m->deciding = FADE;
@@ -12074,7 +12128,7 @@ void menu_draw(const menu_state *m, float screen_w, float screen_h, void (*draw3
     bottom_kind = m->card_back == MENU_SETTING ? BK_GC : !cardpages_ok() ? BK_GC : m->card_page == CP_TA ? BK_BP_GC_VS : BK_BP_GC;
     break;
   case MENU_CAR: case MENU_COLOR: case MENU_COURSE: case MENU_BGM: case MENU_TEN_COURSE: case MENU_TEN_LEVEL: case MENU_GARAGE: case MENU_NAME:
-  case MENU_OPTION: case MENU_SAVE: case MENU_BINDINGS: case MENU_HUDOPT: case MENU_VOLUME: case MENU_PORTINFO: case MENU_RUMBLE: case MENU_DISPLAY:
+  case MENU_OPTION: case MENU_SAVE: case MENU_BINDINGS: case MENU_HUDOPT: case MENU_VOLUME: case MENU_PORTINFO: case MENU_RUMBLE: case MENU_DISPLAY: case MENU_NETWORK:
     bottom_kind = BK_HS_BB_GD;
     break;
   default: bottom_kind = BK_NONE; break;
@@ -12257,6 +12311,13 @@ void menu_draw(const menu_state *m, float screen_w, float screen_h, void (*draw3
   if (m->screen == MENU_DISPLAY) {
     if (m->t < FADE) fade = (float)(m->t + 1) / FADE;
     draw_display(m, clock, bars, screen_w, screen_h);
+    hud_draw_menu_keys(screen_w, screen_h, m->key_held, 0, 1);
+    anm_fill(0, 0, 0, 1.0f - fade);
+    return;
+  }
+  if (m->screen == MENU_NETWORK) {
+    if (m->t < FADE) fade = (float)(m->t + 1) / FADE;
+    draw_net(m, clock, bars, screen_w, screen_h);
     hud_draw_menu_keys(screen_w, screen_h, m->key_held, 0, 1);
     anm_fill(0, 0, 0, 1.0f - fade);
     return;

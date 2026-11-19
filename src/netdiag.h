@@ -23,6 +23,10 @@ double net_clock_ahead_frames(int pcb, int *valid);
 /* the measuring's log lines (versus net / sync / predict / react / spike / calib / trace / own jump / contact / near) only with MT3DX_NETLOG=1 in the environment: they are
  * for the netcode work, and a race writes hundreds of them. The behaviour they describe is always on. */
 int net_log_on(void);
+/* NETWORK OPTIONS' DETAILED NET LOG: the same log lines as MT3DX_NETLOG=1 */
+void net_log_force(int on);
+/* one line of the last race's packet statistics for the screen */
+void net_stats_text(char *out, int n);
 #define NETLOG(...) do { if (net_log_on()) fprintf(stderr, __VA_ARGS__); } while (0)
 
 #endif
