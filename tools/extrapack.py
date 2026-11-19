@@ -134,8 +134,13 @@ def disc(tg, kind, title, font):
         f = min((vsdiscs.fit_font(font, t, (52 if len(lines) == 1 else 44) * SS, 176 * SS) for t in lines), key=lambda ft: ft.size)
         step = (46 if len(lines) == 1 else 39) * SS
         for i, t in enumerate(lines):
-            y = (128 + (7 if kind >= 8 else 0)) * SS + (i - (len(lines) - 1) / 2) * step  # (the mode / car discs' words sit a little lower)
+            y = 128 * SS + (i - (len(lines) - 1) / 2) * step
             vsdiscs.text_edge(big, (128 * SS, y), t, f, width=2 * SS)
+        # the words' ink centred in the disc whatever the font's metrics (the baseline offsets of one font sat them low)
+        bb = big.getchannel("A").getbbox()
+        if bb:
+            from PIL import ImageChops
+            big = ImageChops.offset(big, 0, int(round(128 * SS - (bb[1] + bb[3]) / 2)))
         out.alpha_composite(big.resize(tg.size, Image.LANCZOS))
         return out
     x0, y0, x1, y1 = vsdiscs.BOX
