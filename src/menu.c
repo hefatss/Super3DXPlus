@@ -5036,6 +5036,7 @@ static void back_from_race(menu_state *m, int white) {
   /* an online versus back to its lobby (the class-up and the rest wait for the next race) */
   if (m->vs.state == MENU_VS_RACE) {
     m->vs.state = MENU_VS_LOBBY;
+    m->vs.ready = m->vs.auto_ready; /* (a click again for the next round, unless AUTO READY) */
     m->finish_story = 0;
     /* the stars won or lost first (seqJoStarGet) */
     if (m->star_delta && !white) {
@@ -9943,7 +9944,7 @@ void menu_name_ascii(const menu_state *m, char *out, int n) {
 #define VS_TEXT 107000
 #define VS_ICON 107010
 #define VS_LINE 107020
-enum { VS_KEYS = 12, VS_CONNECT = VS_KEYS, VS_RAMP_L, VS_RAMP_R, VS_KM_L, VS_KM_R, VS_START, VS_HOSTNET /* (online: host a game here) */, VS_BUTTONS };
+enum { VS_KEYS = 12, VS_CONNECT = VS_KEYS, VS_RAMP_L, VS_RAMP_R, VS_KM_L, VS_KM_R, VS_START, VS_HOSTNET /* (online: host a game here) */, VS_AUTO /* (a player's: ready by itself each round) */, VS_BUTTONS };
 #define VS_LEFT 60.0f
 #define VS_RIGHT 520.0f
 #define VS_RIGHT_W 460.0f
@@ -9966,6 +9967,7 @@ static void vs_button(const menu_state *m, int b, float r[4]) {
     { VS_RIGHT, 500, 64, 52 }, { VS_RIGHT + VS_RIGHT_W - 64, 500, 64, 52 }, /* the distance */
     { VS_RIGHT, 568, VS_RIGHT_W, 58 }, /* START */
     { VS_LEFT + 210, 512, 200, 56 },   /* HOST ONLINE */
+    { VS_LEFT, 568, 410, 44 },         /* AUTO READY */
   };
   memcpy(r, R[b - VS_KEYS], sizeof R[0]);
   if (b == VS_CONNECT && m->vs.kind == MENU_VS_NET && m->vs.state == MENU_VS_OFF) r[2] = 200; /* (the address's CONNECT leaves room for HOST ONLINE) */
@@ -9998,6 +10000,7 @@ static int vs_visible(const menu_state *m, int b) {
   if (b < VS_KEYS && m->vs.state != MENU_VS_OFF) return 0;
   if (b < VS_KEYS && m->vs.kind != MENU_VS_NET && b >= m->vs.n_found) return 0;
   if (b == VS_HOSTNET) return m->vs.kind == MENU_VS_NET && m->vs.state == MENU_VS_OFF;
+  if (b == VS_START || b == VS_AUTO) return m->vs.state == MENU_VS_LOBBY && (b == VS_START || m->vs.me != m->vs.host); /* (a player's READY takes the host's START's place) */
   if (b > VS_CONNECT && !vs_host(m)) return 0;
   return b != VS_RAMP_L && b != VS_RAMP_R; /* the area is voted (MENU_VS_AREA) */
 }
@@ -10067,9 +10070,17 @@ static void vs_step(menu_state *m, const menu_in *in) {
     m->vs.km += b == VS_KM_L ? -1 : 1;
     m->vs.km = m->vs.km < 1 ? 1 : m->vs.km > 50 ? 50 : m->vs.km;
     snd_menu(SND_CURSOR);
+  } else if (b == VS_AUTO) { /* AUTO READY: the old way, every round ready by itself */
+    m->vs.auto_ready = !m->vs.auto_ready;
+    if (m->vs.auto_ready) m->vs.ready = 1;
+    m->garage_changed = 1; /* (the options are saved) */
+    snd_menu(SND_SELECT);
+  } else if (b == VS_START && m->vs.me != m->vs.host) { /* a player: READY, and again to take it back */
+    m->vs.ready = !m->vs.ready;
+    snd_menu(m->vs.ready ? SND_SELECT : SND_CANCEL);
   } else if (b == VS_START) {
     int all = m->vs.n >= 2;
-    for (int i = 0; i < m->vs.n; ++i) all &= !m->vs.racing[i] && !m->vs.mismatch[i];
+    for (int i = 0; i < m->vs.n; ++i) all &= !m->vs.racing[i] && !m->vs.mismatch[i] && (i == m->vs.me || m->vs.ready_of[i]);
     if (!all) {
       snd_menu(SND_CANCEL);
       return;
@@ -10219,9 +10230,10 @@ static void draw_vs(const menu_state *m, int clock, int bars, float screen_w, fl
     }
     if (!vs_glyphs(m, i)) hud_ui_text(m->vs.name[i], VS_RIGHT + 60, y + 7, 3.5f, 1, 1, 1, 1);
     hud_ui_text(m->vs.car[i], VS_RIGHT + 60, y + 35, 2.0f, 0.8f, 0.85f, 0.95f, 0.9f);
-    const char *tag = m->vs.racing[i] ? "RACING" : i == m->vs.host ? "HOST" : "READY";
+    int is_ready = i == m->vs.host || (i == m->vs.me ? m->vs.ready : m->vs.ready_of[i]);
+    const char *tag = m->vs.racing[i] ? "RACING" : i == m->vs.host ? "HOST" : is_ready ? "READY" : "NOT READY";
     hud_ui_text(tag, VS_RIGHT + VS_RIGHT_W - 12 - hud_ui_text_width(tag, 2.5f), y + 19, 2.5f,
-                m->vs.racing[i] ? 1.0f : 0.5f, m->vs.racing[i] ? 0.5f : 1.0f, 0.4f, 1);
+                m->vs.racing[i] ? 1.0f : is_ready ? 0.5f : 1.0f, m->vs.racing[i] ? 0.5f : is_ready ? 1.0f : 0.75f, m->vs.racing[i] || !is_ready ? 0.4f : 0.4f, 1);
   }
   /* the race: the host chooses */
   int host = vs_host(m);
@@ -10241,13 +10253,22 @@ static void draw_vs(const menu_state *m, int clock, int bars, float screen_w, fl
   }
   vs_button(m, VS_START, r);
   if (host) {
-    int ready = m->vs.n >= 2;
-    for (int i = 0; i < m->vs.n; ++i) ready &= !m->vs.racing[i];
+    int ready = m->vs.n >= 2, waiting = 0, mism = 0;
+    for (int i = 0; i < m->vs.n; ++i) {
+      ready &= !m->vs.racing[i];
+      mism |= m->vs.mismatch[i];
+      waiting |= i != m->vs.me && !m->vs.racing[i] && !m->vs.ready_of[i];
+    }
+    ready &= !waiting && !mism;
     hud_ui_button(r[0], r[1], r[2], r[3], vs_lit(m, VS_START));
-    vs_centred(ready ? "START" : m->vs.n < 2 ? "WAITING FOR PLAYERS" : "WAITING FOR THE RACE", r, ready ? 5.0f : 3.0f, 1, 1, 1,
+    vs_centred(ready ? "START" : m->vs.n < 2 ? "WAITING FOR PLAYERS" : waiting ? "WAITING FOR READY" : "WAITING FOR THE RACE", r, ready ? 5.0f : 3.0f, 1, 1, 1,
                ready ? 0.95f : 0.5f);
-  } else if (m->vs.state == MENU_VS_LOBBY) {
-    vs_centred("WAITING FOR THE HOST", r, 3.0f, 1, 1, 1, 0.7f);
+  } else if (m->vs.state == MENU_VS_LOBBY) { /* a player: READY (the host starts once every player is), and the old way as an option */
+    hud_ui_button(r[0], r[1], r[2], r[3], vs_lit(m, VS_START));
+    vs_centred(m->vs.ready ? "READY (CLICK TO CANCEL)" : "READY", r, m->vs.ready ? 3.0f : 5.0f, m->vs.ready ? 0.5f : 1.0f, 1, m->vs.ready ? 0.4f : 1.0f, 0.95f);
+    vs_button(m, VS_AUTO, r);
+    hud_ui_button(r[0], r[1], r[2], r[3], vs_lit(m, VS_AUTO));
+    vs_centred(m->vs.auto_ready ? "AUTO READY: ON" : "AUTO READY: OFF", r, 2.6f, 1, 1, 1, 0.95f);
   }
   hud_ui_end();
   /* the names as the card has them, in font 5's glyphs (over the rows the UI drew; the UI's
@@ -10344,7 +10365,7 @@ int menu_vs_status(const menu_state *m) {
   }
   /* (on the stars screen as if still racing: the host's START waits for it) */
   if (m->screen == MENU_VS_STAR) return 1;
-  if (m->screen != MENU_VS_AREA) return m->vs.state < MENU_VS_LOADING ? 0 : m->vs.loaded ? MENU_VS_LOADED : 1;
+  if (m->screen != MENU_VS_AREA) return m->vs.state < MENU_VS_LOADING ? (m->vs.me != m->vs.host && m->vs.ready ? MENU_VS_READY : 0) : m->vs.loaded ? MENU_VS_LOADED : 1;
   if (m->vs.area_final >= 0 && m->vs.me == m->vs.host) return MENU_VS_FINAL + m->vs.area_final;
   if (m->vs.voted) return (m->vs.voted == 2 ? MENU_VS_OMAKASE : MENU_VS_VOTED) + m->vs.vote;
   return MENU_VS_CHOOSING + m->vs.item;

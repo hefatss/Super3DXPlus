@@ -445,6 +445,8 @@ typedef struct {
     char name[MENU_VS_PLAYERS][17], car[MENU_VS_PLAYERS][32];
     short glyph[MENU_VS_PLAYERS][5]; /* the names' own characters (namedb.h's, -1 past the end; none from an older build) */
     unsigned char mismatch[MENU_VS_PLAYERS]; /* a player on another build (app.c VS_BUILD): no start with one */
+    int ready, auto_ready;  /* this player is ready for the next round (a click each round; the host's START waits for every other player), and clicks it by itself (AUTO READY, saved) */
+    unsigned char ready_of[MENU_VS_PLAYERS]; /* each player's, from its status */
     int racing[MENU_VS_PLAYERS];
     int ramp, km;        /* the host's choice (the others: the last race's) */
     int last_place, last_n; /* the last race's place of how many (0 none) */
@@ -693,6 +695,8 @@ void menu_vs_closed(menu_state *m, const char *note);
 /* The area vote's status byte (the lobby's HELLO, which the servers pass on unread): 0 the
  * lobby, 1 racing, MENU_VS_CHOOSING + card while choosing, MENU_VS_VOTED + card voted,
  * MENU_VS_OMAKASE + card voted by omakase, MENU_VS_FINAL + card the host's result */
+/* (in the lobby: 0 not ready, MENU_VS_READY ready) */
+enum { MENU_VS_READY = 12 };
 enum { MENU_VS_CHOOSING = 2, MENU_VS_VOTED = 16, MENU_VS_OMAKASE = 32, MENU_VS_FINAL = 48, MENU_VS_CARDS = 9 };
 /* then the time zone vote's (+ zone, 0 morning, 1 night): MENU_VS_DAY choosing, MENU_VS_DAY_VOTED
  * voted, MENU_VS_DAY_FINAL the host's result, MENU_VS_DAY_OMAKASE left to the others; and

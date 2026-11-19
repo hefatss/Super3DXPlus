@@ -131,3 +131,8 @@ Every race packet carries its sender's round trip to the host after the car link
 |---|---|
 | 169 | the first build with the mark |
 | 170 | the race packet's trailing round trip (ping), the host's statuses carrying the area card after the vote, the ping on the HUD |
+| 171 | a player's READY in the lobby (status 12), the host's START waiting for every other player's, AUTO READY; a race that stands still 30 s sends everyone back |
+
+## Ready and the hang check
+
+A player (not the host) clicks READY in the lobby before each round; the host's START waits for every other player's (the lobby shows NOT READY / READY). The tick goes after every round too, unless AUTO READY (the lobby's button under READY, saved in the options) is on, which is the old behaviour. A race whose clock does not move for 30 s (loading for a machine that never finishes, nothing heard from the host) sends every machine back to the versus screen with THE RACE TIMED OUT. PLEASE TRY AGAIN; `MT3DX_VSAUTO=join` test players ready themselves.

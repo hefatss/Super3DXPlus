@@ -356,6 +356,9 @@ static struct {
   int vs_race;
   int vs_song;      /* the host's: its song for everyone's race */
   int vs_closed;    /* a race's frames since the host closed the game (or went quiet): its notice */
+  const char *vs_closed_msg; /* what the screen after it says (NULL: the host closed the game) */
+  double vs_prog_t; /* the race's clock last moved at (the hang check), 0 not started */
+  unsigned vs_prog_tick;
   unsigned char vs_left[CAR_LINK_MACHINES]; /* the machines (PCB) that left the race on the way */
   int vs_left_n, vs_left_t, vs_forfeit; /* how many left; frames of the latest one's notice; the round ended by all the others leaving */
   char vs_left_msg[96];
@@ -1040,6 +1043,8 @@ static int options_load(void) {
   if (n >= 3 && fscanf(f, " milage %d", &ml) == 1) G.menu.milage_on = ml != 0;
   int bl = 0; /* (the PC player's black level, the very last line) */
   if (n >= 3 && fscanf(f, " black %d", &bl) == 1) G.menu.black_lv = bl < 0 ? 0 : bl > 10 ? 10 : bl;
+  int va = 0; /* (the versus lobby's AUTO READY, after it) */
+  if (n >= 3 && fscanf(f, " vsauto %d", &va) == 1) G.menu.vs.auto_ready = va != 0;
   fclose(f);
   if (n < 3) return 0;
   G.menu.hires = hires != 0;
@@ -1056,8 +1061,8 @@ static int options_load(void) {
 }
 
 static void options_save(void) {
-  static int last[47] = { -1 };
-  int now[47] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
+  static int last[48] = { -1 };
+  int now[48] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
                   G.menu.bm_on, G.menu.hd_tex, G.menu.bloom_on, G.menu.ssao_on, G.menu.wet_on, G.menu.paint_on,
                   G.menu.aa4, G.menu.hires };
   for (int g = 0; g < 3; ++g)
@@ -1072,6 +1077,7 @@ static void options_save(void) {
   now[43] = G.menu.vol[4], now[44] = G.menu.vol[5];
   now[45] = G.menu.milage_on;
   now[46] = G.menu.black_lv;
+  now[47] = G.menu.vs.auto_ready;
   if (G.options_global && !memcmp(now, last, sizeof now)) return;
   char path[1100];
   snprintf(path, sizeof path, "%s/option", G.save_dir);
@@ -1094,6 +1100,8 @@ static void options_save(void) {
   fprintf(f, "btnsteer %d\n", now[42]);
   fprintf(f, "balance %d %d\n", now[43], now[44]);
   fprintf(f, "milage %d\n", now[45]);
+  fprintf(f, "black %d\n", now[46]);
+  fprintf(f, "vsauto %d\n", now[47]);
   fclose(f);
   memcpy(last, now, sizeof last);
   G.options_global = 1;
@@ -3293,7 +3301,7 @@ static void movie_close(void) {
  * what both ends must compute alike for a race to stay in sync (the physics and car code the packets feed, the start, the track and ramp choice). A look,
  * a menu, an option, a fix that stays on one machine does not touch it. Bump it by one in the commit that makes such a change, and say why in the log
  * of docs/VERSUS.md "Protocol versions". The static asserts below hold the wire's own numbers: one that fails means the wire changed, so bump this. */
-#define VS_BUILD 170
+#define VS_BUILD 171
 /* and the car's special colour (menu ccolor: 0 its own) */
 #define VS_PROFILE_CC 21
 #define VS_PROFILE 22
@@ -3301,11 +3309,12 @@ static void movie_close(void) {
 #define VS_PROFILE_BGM 22
 #define VS_PROFILE_PLACE 23
 #define VS_PROFILE_LEN 24
-_Static_assert(CAR_LINK_PACKET == 0x278 && NET_PLAYERS == 4 && VS_PROFILE_LEN == 24 && MENU_VS_TUNED == 76 && MENU_VS_DAY_OMAKASE == 72 && MENU_VS_CARDS == 9,
+_Static_assert(CAR_LINK_PACKET == 0x278 && NET_PLAYERS == 4 && VS_PROFILE_LEN == 24 && MENU_VS_TUNED == 76 && MENU_VS_READY == 12 && MENU_VS_DAY_OMAKASE == 72 && MENU_VS_CARDS == 9,
                "the versus's wire changed: bump VS_BUILD (app.c) and note it in docs/VERSUS.md, then update this assert");
 #define VS_SILENT 3.0 /* seconds without the server before the screen says so */
 #define VS_GONE 10.0  /* seconds without it in a race on: the host is gone */
 #define VS_GONE_RACE 5.0 /* ... in a race the packets come 60 times a second: the host is gone when they stop for this long */
+#define VS_HANG 30.0 /* seconds a versus race may stand still (loading for the others, the clock not running, nothing heard) before everyone is sent back to try again */
 #define VS_CLOSED_NOTICE 180 /* frames of the race's notice of it */
 /* the time attack course whose map and HUD a join ramp's race uses (the ramp's road) */
 static const signed char VS_RAMP_COURSE[MENU_VS_RAMPS] = { 0, 1, 0, 1, 2, 3, 4, 4, 4, 4, 5, 5, 5, 5, 7, 9, 9, 6, 8, 8, 8, 8 };
@@ -3707,7 +3716,8 @@ static void vs_menu(void) {
       if (!strncmp(a, "host", 4)) m->vs.connect = 1;
       else if (m->vs.n_found > 0) m->vs.join = 1;
     }
-    if (!strncmp(a, "host", 4) && m->vs.state == MENU_VS_LOBBY && !m->vs.area_go && m->vs.n >= (a[4] == ':' ? atoi(a + 5) : 2) && tick > 400) m->vs.start = 1;
+    if (!strncmp(a, "host", 4) && m->vs.state == MENU_VS_LOBBY && !m->vs.area_go && m->vs.n >= (a[4] == ':' ? atoi(a + 5) : 2) && tick > 400) m->vs.start = 1; /* (the test players ready themselves, below) */
+    if (!strncmp(a, "join", 4) && m->vs.state == MENU_VS_LOBBY && !getenv("MT3DX_NOREADY")) m->vs.ready = 1;
   }
   if (m->vs.connect) {
     int c = m->vs.connect;
@@ -3780,7 +3790,7 @@ static void vs_menu(void) {
   }
   const net_lobby *l = net_lobby_now();
   if (l->connected) {
-    if (m->vs.state == MENU_VS_CONNECTING) m->vs.state = MENU_VS_LOBBY;
+    if (m->vs.state == MENU_VS_CONNECTING) m->vs.state = MENU_VS_LOBBY, m->vs.ready = m->vs.auto_ready;
     m->vs.n = l->n < MENU_VS_PLAYERS ? l->n : MENU_VS_PLAYERS;
     m->vs.me = l->me;
     m->vs.host = l->host;
@@ -3805,13 +3815,14 @@ static void vs_menu(void) {
         if (i < NET_PLAYERS && said[i] != theirs + 1) said[i] = theirs + 1, fprintf(stderr, "versus: player %d is on protocol %d, this build is on %d: no race together\n", i, theirs, VS_BUILD);
       }
       m->vs.racing[i] = pl->status == 1 || pl->status == MENU_VS_LOADED;
+      m->vs.ready_of[i] = pl->status == MENU_VS_READY;
       /* the area vote's (menu_vs_status) */
       int host_card = -1, st = menu_vs_status_plain(pl->status, &host_card);
       /* the host's later statuses name the area it chose: a machine that missed the result's brief one has it from them */
       if (i == l->host && i != l->me && host_card >= 0 && m->vs.area_final < 0) m->vs.area_final = host_card;
-      m->vs.other_vote[i] = st >= MENU_VS_CHOOSING && st < MENU_VS_VOTED ? 0 : st >= MENU_VS_VOTED && st < MENU_VS_OMAKASE ? 1
+      m->vs.other_vote[i] = st == MENU_VS_READY ? -1 : st >= MENU_VS_CHOOSING && st < MENU_VS_VOTED ? 0 : st >= MENU_VS_VOTED && st < MENU_VS_OMAKASE ? 1
                             : st >= MENU_VS_OMAKASE && st < MENU_VS_FINAL ? 2 : st >= MENU_VS_FINAL && st < MENU_VS_DAY ? 1 : -1;
-      m->vs.other[i] = st >= MENU_VS_FINAL ? st - MENU_VS_FINAL : st >= MENU_VS_OMAKASE ? st - MENU_VS_OMAKASE
+      m->vs.other[i] = st == MENU_VS_READY ? 0 : st >= MENU_VS_FINAL ? st - MENU_VS_FINAL : st >= MENU_VS_OMAKASE ? st - MENU_VS_OMAKASE
                        : st >= MENU_VS_VOTED ? st - MENU_VS_VOTED : st - MENU_VS_CHOOSING;
       /* and the time zone vote's */
       m->vs.other_day[i] = st >= MENU_VS_DAY && st < MENU_VS_DAY_VOTED ? 0 : st >= MENU_VS_DAY_VOTED && st < MENU_VS_LOADED ? 1
@@ -3842,7 +3853,9 @@ static void vs_menu(void) {
   if (m->vs.start) {
     /* the host's START opens the area vote (the others follow its status) */
     m->vs.start = 0;
-    if (m->vs.state == MENU_VS_LOBBY && l->me == l->host && m->screen == MENU_VS) m->vs.area_go = 1;
+    int all_ready = 1; /* (every other player has clicked READY: the menu's START already holds for it; this keeps a START from anywhere else to it too) */
+    for (int i = 0; i < m->vs.n; ++i) all_ready &= i == l->me || m->vs.ready_of[i];
+    if (m->vs.state == MENU_VS_LOBBY && l->me == l->host && m->screen == MENU_VS && all_ready) m->vs.area_go = 1;
   }
   net_go go;
   if (m->vs.state == MENU_VS_LOBBY && net_take_go(&go)) {
@@ -4055,9 +4068,20 @@ static void wide_sides(void) {
   glDisableVertexAttribArray(2);
 }
 
+/* a race that cannot go on (the loading wait ran out): the connection closed and the versus screen with the reason */
+static void vs_timeout(const char *msg) {
+  vs_off();
+  G.vs_closed = 0, G.vs_closed_msg = NULL, G.vs_prog_t = 0;
+  G.paused = 0;
+  snd_quiet();
+  hud_init(&G.hud, G.hud.screen_w, G.hud.screen_h);
+  menu_vs_closed(&G.menu, msg);
+  G.in_menu = 1;
+}
+
 /* Whether the race's other machines have loaded it too: each says so in its lobby status
  * (MENU_VS_LOADED, then 1 again in the race), a machine not in the lobby (gone) not waited for */
-#define VS_WAIT_MAX (60 * 60)
+#define VS_WAIT_MAX (30 * 60) /* (VS_HANG) */
 #define VS_LOADING_MIN 30 /* frames of the loading page at least, after the cars' flying in */
 static int vs_others_loaded(void) {
   const net_lobby *l = net_lobby_now();
@@ -4216,8 +4240,13 @@ static void menu_frame(float dt, double frame_start) {
   int vs_waiting = vs && G.menu.vs.loaded && !vs_others_loaded();
   if (G.menu.vs.wait_others && !vs_waiting) fprintf(stderr, "versus: the others loaded after %.1f s\n", (float)G.vs_wait / 60.0f);
   G.vs_wait = vs_waiting ? G.vs_wait + 1 : 0;
-  if (G.vs_wait == VS_WAIT_MAX) fprintf(stderr, "versus: the others still loading after %d s, starting\n", VS_WAIT_MAX / 60);
-  G.menu.vs.wait_others = vs_waiting && G.vs_wait < VS_WAIT_MAX;
+  if (vs_waiting && G.vs_wait >= VS_WAIT_MAX) { /* the others never loaded it: no race alone, everyone back to try again */
+    fprintf(stderr, "versus: the others still loading after %d s, back to the lobby\n", VS_WAIT_MAX / 60);
+    G.vs_wait = 0;
+    vs_timeout("THE RACE TIMED OUT. PLEASE TRY AGAIN");
+    return;
+  }
+  G.menu.vs.wait_others = vs_waiting;
   int vs_ready = vs && G.menu.ready && !G.menu.vs.wait_others && G.menu.t >= VS_LOADING_MIN;
   if (vs_ready) go = 1;
   if (G.menu.save_erase) {
@@ -4352,6 +4381,7 @@ static void menu_frame(float dt, double frame_start) {
     } else {
       effects_reset();
       G.vs_race = vs ? G.n_rival : 0;
+      G.vs_prog_t = 0;
       story_cut_start();
       if (vs) G.menu.vs.state = MENU_VS_RACE;
       fprintf(stderr, "race: course %d (%s), %s colour %d, power %d handling %d, %s (slot %d, full tune %d, story tune %d/%d)\n", G.menu.course,
@@ -4833,13 +4863,28 @@ void app_frame(float dt) {
       fprintf(stderr, "versus: the host %s\n", net_host_closed() ? "closed the game" : "went quiet");
     }
   }
+  /* the hang check: a race whose clock has not moved for VS_HANG seconds (it waits for a machine that is not coming), or that has heard nothing from the host
+   * for as long, sends everyone back to the menu to try again (each machine on its own; the host's leaving closes the game for the rest) */
+  if (G.vs_race && !G.vs_closed && !G.menu.finish && !G.paused) {
+    double t = now_ms() * 1e-3;
+    static double hang = -1;
+    if (hang < 0) hang = getenv("MT3DX_VS_HANG") ? atof(getenv("MT3DX_VS_HANG")) : VS_HANG; /* (tests: a shorter wait; MT3DX_VS_HANG_FREEZE: the clock is taken for stuck once racing) */
+    if (G.vs_prog_t == 0 || (G.car.lamp_tick != G.vs_prog_tick && !(getenv("MT3DX_VS_HANG_FREEZE") && G.car.race.countdown <= 0.0f))) G.vs_prog_tick = G.car.lamp_tick, G.vs_prog_t = t;
+    if (t - G.vs_prog_t > hang || (net_is_open() && net_silence(t) > hang)) {
+      fprintf(stderr, "versus: the race stood still for %.0f s (heard from the host %.0f s ago), back to the lobby\n", t - G.vs_prog_t, net_silence(t));
+      G.vs_closed_msg = "THE RACE TIMED OUT. PLEASE TRY AGAIN";
+      G.vs_closed = 1;
+    }
+  }
   if (G.vs_closed && ++G.vs_closed > VS_CLOSED_NOTICE) {
     vs_off();
     G.vs_closed = 0;
     G.paused = 0;
     snd_quiet();
     hud_init(&G.hud, G.hud.screen_w, G.hud.screen_h);
-    menu_vs_closed(&G.menu, "THE HOST CLOSED THE GAME");
+    menu_vs_closed(&G.menu, G.vs_closed_msg ? G.vs_closed_msg : "THE HOST CLOSED THE GAME");
+    G.vs_closed_msg = NULL;
+    G.vs_prog_t = 0;
     G.in_menu = 1;
     if (G.perf) fflush(G.perf);
     menu_frame(0, frame_start);

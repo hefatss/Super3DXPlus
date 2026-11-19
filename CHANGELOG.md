@@ -23,6 +23,7 @@ What Super3DX+ adds or changes compared with [Re3DX+](NOTICE.md). Longer explana
 - Fixed versus play over LAN or online, with restored route choice at junctions, last-stretch calls, placings and disconnect handling
 - Versus: each rival's ping (P: 21, green to 75 ms, yellow to 120, orange to 200, red over) under its ADVANTAGE; the winning track's name on the HP screen's band; the host's area result reaches a machine that missed it; the interrupt switch's headlight flash restored (HEADLIGHT FLASH in KEY BINDINGS, L / pad X); the junction flare covers a wide window; the LEAVE IT TO THE OTHERS key is gone
 - The mouse pointer hides in a race (PC)
+- Versus: players click READY before each round (the host's START waits for them; AUTO READY in the lobby brings the old way back); a race that stands still for 30 s sends everyone back to try again; BLACK LEVEL is saved now
 - The music select starts on RANDOM every time (versus and single player), not on the last race's song
 - Music selection by the host and by each race's winner in versus
 - Time attack rankings with car class and level, kept across sessions
