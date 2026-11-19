@@ -7443,7 +7443,7 @@ void menu_init(menu_state *m) {
   m->zone = 0;
   m->zones = 1;
   menu_garage_reset(m);
-  m->gyro = 0, m->gyro_sens = 5, m->over_on = 1, m->milage_on = 1, m->black_lv = 0, m->net_ping = 1, m->net_log = 0, m->sharp_on = 0, m->ao_on = 0, m->bm_on = 1, m->readout_on = 0, m->fps_on = 0, m->phys_on = 0, m->filter_on = 1, m->filter_smooth = 10, m->filter_counter = 5, m->btn_steer = 10;
+  m->gyro = 0, m->gyro_sens = 5, m->over_on = 1, m->milage_on = 1, m->black_lv = 0, m->net_ping = 1, m->net_log = 1, m->sharp_on = 0, m->ao_on = 0, m->bm_on = 1, m->readout_on = 0, m->fps_on = 0, m->phys_on = 0, m->filter_on = 1, m->filter_smooth = 10, m->filter_counter = 5, m->btn_steer = 10;
   for (int g = 0; g < 3; ++g) m->key_k[g] = 100, m->key_dx[g] = m->key_dy[g] = 0;
   m->poem = -1;
   for (int i = 0; i < 6; ++i) m->vol[i] = 10; /* (the volume mixer, full, but the overall level at half) */

@@ -1045,7 +1045,7 @@ static int options_load(void) {
   if (n >= 3 && fscanf(f, " black %d", &bl) == 1) G.menu.black_lv = bl < 0 ? 0 : bl > 10 ? 10 : bl;
   int va = 0; /* (the versus lobby's AUTO READY, after it) */
   if (n >= 3 && fscanf(f, " vsauto %d", &va) == 1) G.menu.vs.auto_ready = va != 0;
-  int no[2] = { 1, 0 }; /* (PING ON THE HUD, DETAILED NET LOG: after it) */
+  int no[2] = { 1, 1 }; /* (PING ON THE HUD, DETAILED NET LOG, both on by default: after it) */
   if (n >= 3 && fscanf(f, " netopt %d %d", &no[0], &no[1]) == 2) G.menu.net_ping = no[0] != 0, G.menu.net_log = no[1] != 0;
   fclose(f);
   if (n < 3) return 0;
