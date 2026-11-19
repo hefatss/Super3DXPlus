@@ -3527,8 +3527,10 @@ static void net_info_fill(menu_state *m) {
   nat_local_ip(ip);
   net_stats_text(stats, sizeof stats);
   snprintf(m->net_lines[0], sizeof m->net_lines[0], "VERSUS VERSION %d (ALL PLAYERS MUST MATCH)", VS_BUILD);
-  snprintf(m->net_lines[1], sizeof m->net_lines[1], "YOUR ADDRESS: %s", ip[0] ? ip : "UNKNOWN");
-  if (m->vs.hosting) snprintf(m->net_lines[2], sizeof m->net_lines[2], m->vs.invite[0] ? "HOSTING ONLINE. ROOM CODE: %s" : "HOSTING ON THE LAN", m->vs.invite);
+  char shown[24]; /* (this screen is shown and copied for bug reports: a public address is hidden, and the room code is not here at all) */
+  log_mask_ip(ip, shown);
+  snprintf(m->net_lines[1], sizeof m->net_lines[1], "YOUR ADDRESS: %s", ip[0] ? shown : "UNKNOWN");
+  if (m->vs.hosting) snprintf(m->net_lines[2], sizeof m->net_lines[2], "%s", m->vs.invite[0] ? "HOSTING ONLINE" : "HOSTING ON THE LAN");
   else snprintf(m->net_lines[2], sizeof m->net_lines[2], "NOT HOSTING");
   if (net_is_open() && l->connected) {
     double rtt = net_rtt_ms();
@@ -3538,7 +3540,7 @@ static void net_info_fill(menu_state *m) {
     snprintf(m->net_lines[3], sizeof m->net_lines[3], "NOT CONNECTED");
   }
   snprintf(m->net_lines[4], sizeof m->net_lines[4], "%s", stats);
-  snprintf(m->net_lines[5], sizeof m->net_lines[5], "%s", m->vs.natnote[0] ? m->vs.natnote : "");
+  m->net_lines[5][0] = 0; /* (the router's note can name an address: not here) */
 }
 
 const char *app_net_diag(void) {
@@ -3782,7 +3784,9 @@ static void vs_menu(void) {
       vs_ip_save();
       if (net_room_parse(m->vs.ip, tip, &tport) == 0 && net_open(tip, tport, G.vs_id) == 0) {
         m->vs.state = MENU_VS_CONNECTING;
-        fprintf(stderr, "versus: connecting to %s:%d as %08x\n", tip, tport, G.vs_id);
+        char shown[24];
+        log_mask_ip(tip, shown); /* (a server or a friend's public address stays out of the log) */
+        fprintf(stderr, "versus: connecting to %s:%d as %08x\n", shown, tport, G.vs_id);
       } else {
         snprintf(m->vs.note, sizeof m->vs.note, "NOT AN ADDRESS OR ROOM CODE");
       }
@@ -3799,7 +3803,9 @@ static void vs_menu(void) {
       if (k < n && net_open(f[k].ip, f[k].port ? f[k].port : NET_PORT, G.vs_id) == 0) {
         net_scan(now, 0);
         m->vs.state = MENU_VS_CONNECTING;
-        fprintf(stderr, "versus: joining %s at %s as %08x\n", f[k].name, f[k].ip, G.vs_id);
+        char shown[24];
+        log_mask_ip(f[k].ip, shown);
+        fprintf(stderr, "versus: joining %s at %s as %08x\n", f[k].name, shown, G.vs_id);
       }
     }
   }

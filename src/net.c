@@ -542,3 +542,129 @@ uint32_t net_random32(void) {
   if (!ok) v = (uint32_t)time(NULL) * 2654435761u ^ (uint32_t)clock();
   return v ? v : 1;
 }
+
+/* ---- the log's privacy: a log is attached to bug reports in public, so what could identify a player is taken out of it: public IPv4 addresses (a room code is a public
+ * address in 15 digits), room codes, and the user's name in a path (C:\Users\name\...). Private LAN addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x, 169.254.x.x, 127.x.x.x) stay:
+ * they say nothing about who the player is and are what a LAN problem is diagnosed from. The platforms scrub the last run's log file at the start (a crashed run too) and
+ * their own at a clean exit (log_scrub_file); the log lines that name an address are masked where they are written (log_mask_ip) as well. ---- */
+static int ip_is_private(int a, int b) {
+  return a == 10 || a == 127 || a == 0 || a >= 224 || (a == 192 && b == 168) || (a == 172 && b >= 16 && b <= 31) || (a == 169 && b == 254) || (a == 100 && b >= 64 && b <= 127);
+}
+
+/* a dotted address at in[i..]: its length (0 if not one), its first two numbers */
+static int ip_at(const char *in, int i, int *a, int *b) {
+  int v[4], k = i;
+  for (int part = 0; part < 4; ++part) {
+    int d = 0, n = 0;
+    while (in[k] >= '0' && in[k] <= '9' && d < 4) n = n * 10 + (in[k++] - '0'), ++d;
+    if (d < 1 || d > 3 || n > 255) return 0;
+    v[part] = n;
+    if (part < 3) {
+      if (in[k] != '.') return 0;
+      ++k;
+    }
+  }
+  if (in[k] >= '0' && in[k] <= '9') return 0;
+  if (in[k] == '.' && in[k + 1] >= '0' && in[k + 1] <= '9') return 0; /* (a longer version number) */
+  *a = v[0], *b = v[1];
+  return k - i;
+}
+
+static int digits_at(const char *in, int i, int n) {
+  for (int k = 0; k < n; ++k)
+    if (in[i + k] < '0' || in[i + k] > '9') return 0;
+  return 1;
+}
+
+/* one line scrubbed into out (at most cap - 1 bytes) */
+static void scrub_line(const char *in, char *out, size_t cap) {
+  size_t o = 0;
+  int n = (int)strlen(in);
+  for (int i = 0; i < n && o + 24 < cap;) {
+    char prev = i ? in[i - 1] : ' ';
+    int word_start = !((prev >= '0' && prev <= '9') || prev == '.' || (prev >= 'a' && prev <= 'z') || (prev >= 'A' && prev <= 'Z'));
+    if (word_start && in[i] >= '0' && in[i] <= '9') {
+      /* a room code: 5-5-5 digits, or 15 */
+      if (digits_at(in, i, 5) && in[i + 5] == '-' && digits_at(in, i + 6, 5) && in[i + 11] == '-' && digits_at(in, i + 12, 5) && !(in[i + 17] >= '0' && in[i + 17] <= '9')) {
+        o += (size_t)snprintf(out + o, cap - o, "[room code hidden]");
+        i += 17;
+        continue;
+      }
+      if (digits_at(in, i, 15) && !(in[i + 15] >= '0' && in[i + 15] <= '9')) {
+        o += (size_t)snprintf(out + o, cap - o, "[room code hidden]");
+        i += 15;
+        continue;
+      }
+      int a = 0, b = 0, len = ip_at(in, i, &a, &b);
+      if (len && !ip_is_private(a, b)) {
+        o += (size_t)snprintf(out + o, cap - o, "[public ip hidden]");
+        i += len;
+        continue;
+      }
+    }
+    /* Users\name or Users/name: the name hidden */
+    if ((in[i] == 'U' || in[i] == 'u') && !strncmp(in + i + 1, "sers", 4) && (in[i + 5] == '\\' || in[i + 5] == '/')) {
+      out[o++] = in[i];
+      memcpy(out + o, "sers", 4), o += 4;
+      out[o++] = in[i + 5];
+      int k = i + 6;
+      while (in[k] && in[k] != '\\' && in[k] != '/' && in[k] != '"' && in[k] != '\'' && in[k] != ' ' && in[k] != '\n' && in[k] != '\r') ++k;
+      if (k > i + 6) o += (size_t)snprintf(out + o, cap - o, "<user>");
+      i = k;
+      continue;
+    }
+    out[o++] = in[i++];
+  }
+  out[o] = 0;
+}
+
+/* a log file scrubbed in place (a missing one is left alone); 0 when done */
+int log_scrub_file(const char *path) {
+  FILE *f = fopen(path, "rb");
+  if (!f) return -1;
+  fseek(f, 0, SEEK_END);
+  long size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  if (size <= 0 || size > 64L * 1024 * 1024) {
+    fclose(f);
+    return -1;
+  }
+  char *text = malloc((size_t)size + 1);
+  if (!text || fread(text, 1, (size_t)size, f) != (size_t)size) {
+    free(text);
+    fclose(f);
+    return -1;
+  }
+  fclose(f);
+  text[size] = 0;
+  char tmp[1300];
+  snprintf(tmp, sizeof tmp, "%s.scrub", path);
+  FILE *out = fopen(tmp, "wb");
+  if (!out) {
+    free(text);
+    return -1;
+  }
+  char line[2048], clean[4096];
+  for (char *p = text; *p;) {
+    char *e = strchr(p, '\n');
+    size_t len = e ? (size_t)(e - p) : strlen(p);
+    if (len >= sizeof line) len = sizeof line - 1;
+    memcpy(line, p, len);
+    line[len] = 0;
+    scrub_line(line, clean, sizeof clean);
+    fputs(clean, out);
+    if (e) fputc('\n', out);
+    p = e ? e + 1 : p + strlen(p);
+  }
+  fclose(out);
+  free(text);
+  remove(path);
+  return rename(tmp, path);
+}
+
+/* an address for a log line: kept if it is a private one, else hidden */
+void log_mask_ip(const char *ip, char out[24]) {
+  int a = 0, b = 0;
+  if (ip && ip_at(ip, 0, &a, &b) && ip_is_private(a, b)) snprintf(out, 24, "%.20s", ip);
+  else snprintf(out, 24, "[public ip hidden]");
+}

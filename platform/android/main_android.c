@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "app.h"
+#include "netdiag.h"
 #include "bgm.h"
 #include "bind.h"
 #include "gl.h"
@@ -463,6 +464,7 @@ JNIEXPORT void JNICALL JFN(nativeStart)(JNIEnv *env, jclass cls, jobject activit
   (*env)->ReleaseStringUTFChars(env, save, s);
   char log[600];
   snprintf(log, sizeof log, "%s/log.txt", A.save_dir);
+  log_scrub_file(log); /* (the last run's log: no public address, room code or user name stays in it) */
   freopen(log, "w", stderr);
   setvbuf(stderr, NULL, _IONBF, 0);
   fprintf(stderr, "start (android)\n");

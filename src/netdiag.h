@@ -27,6 +27,10 @@ int net_log_on(void);
 void net_log_force(int on);
 /* one line of the last race's packet statistics for the screen */
 void net_stats_text(char *out, int n);
+/* the log's privacy (net.c): log_scrub_file takes the public IP addresses, room codes and user names in paths out of a log file in place; log_mask_ip is an address for a log
+ * line (a private LAN one as it is, any other hidden) */
+int log_scrub_file(const char *path);
+void log_mask_ip(const char *ip, char out[24]);
 #define NETLOG(...) do { if (net_log_on()) fprintf(stderr, __VA_ARGS__); } while (0)
 
 #endif

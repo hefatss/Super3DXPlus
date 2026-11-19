@@ -34,3 +34,5 @@ void net_set_flash(int off) { (void)off; }
 int net_flash_of(int pcb) { return (void)pcb, 0; }
 void net_log_force(int on) { (void)on; }
 void net_stats_text(char *out, int n) { snprintf(out, (size_t)n, ""); }
+int log_scrub_file(const char *path) { return (void)path, -1; }
+void log_mask_ip(const char *ip, char out[24]) { (void)ip, snprintf(out, 24, "[public ip hidden]"); }
