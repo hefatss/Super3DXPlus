@@ -3288,7 +3288,12 @@ static void movie_close(void) {
 /* then the build's mark ('W' and VS_BUILD): players on another build (their race code, the
  * physics and its effects can differ) are marked VERSION MISMATCH and hold the start (out of sync); a build from before sends none */
 #define VS_PROFILE_BUILD 19
-#define VS_BUILD 169
+/* The versus's protocol version. Players on another one cannot race together (VERSION MISMATCH, the host's START held), so it changes ONLY when a change
+ * makes two machines disagree: what goes over the wire (the lobby, the profile, the statuses and their numbers, the race packet and what it carries), or
+ * what both ends must compute alike for a race to stay in sync (the physics and car code the packets feed, the start, the track and ramp choice). A look,
+ * a menu, an option, a fix that stays on one machine does not touch it. Bump it by one in the commit that makes such a change, and say why in the log
+ * of docs/VERSUS.md "Protocol versions". The static asserts below hold the wire's own numbers: one that fails means the wire changed, so bump this. */
+#define VS_BUILD 170
 /* and the car's special colour (menu ccolor: 0 its own) */
 #define VS_PROFILE_CC 21
 #define VS_PROFILE 22
@@ -3296,6 +3301,8 @@ static void movie_close(void) {
 #define VS_PROFILE_BGM 22
 #define VS_PROFILE_PLACE 23
 #define VS_PROFILE_LEN 24
+_Static_assert(CAR_LINK_PACKET == 0x278 && NET_PLAYERS == 4 && VS_PROFILE_LEN == 24 && MENU_VS_TUNED == 76 && MENU_VS_DAY_OMAKASE == 72 && MENU_VS_CARDS == 9,
+               "the versus's wire changed: bump VS_BUILD (app.c) and note it in docs/VERSUS.md, then update this assert");
 #define VS_SILENT 3.0 /* seconds without the server before the screen says so */
 #define VS_GONE 10.0  /* seconds without it in a race on: the host is gone */
 #define VS_GONE_RACE 5.0 /* ... in a race the packets come 60 times a second: the host is gone when they stop for this long */
@@ -3789,7 +3796,14 @@ static void vs_menu(void) {
       const cardb_car *car = col ? &CARDB_CARS[pl->profile[0]][pl->profile[1]] : NULL;
       vs_ascii(m->vs.car[i], sizeof m->vs.car[i], car ? car->label : "?");
       m->vs.mismatch[i] = i != l->me && !vs_same_build(pl);
-      if (m->vs.mismatch[i]) vs_ascii(m->vs.car[i], sizeof m->vs.car[i], "VERSION MISMATCH, PLEASE UPDATE");
+      if (m->vs.mismatch[i]) {
+        char why[64];
+        int theirs = pl->profile_len >= VS_PROFILE && pl->profile[VS_PROFILE_BUILD] == 'W' ? pl->profile[VS_PROFILE_BUILD + 1] : 0;
+        snprintf(why, sizeof why, "VERSION MISMATCH: THEIRS %d, YOURS %d. UPDATE", theirs, VS_BUILD);
+        vs_ascii(m->vs.car[i], sizeof m->vs.car[i], why);
+        static int said[NET_PLAYERS];
+        if (i < NET_PLAYERS && said[i] != theirs + 1) said[i] = theirs + 1, fprintf(stderr, "versus: player %d is on protocol %d, this build is on %d: no race together\n", i, theirs, VS_BUILD);
+      }
       m->vs.racing[i] = pl->status == 1 || pl->status == MENU_VS_LOADED;
       /* the area vote's (menu_vs_status) */
       int host_card = -1, st = menu_vs_status_plain(pl->status, &host_card);

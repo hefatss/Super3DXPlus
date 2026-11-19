@@ -122,3 +122,12 @@ Test helpers: `tools/test/vs2.ps1` runs two players on one PC (host and client, 
 ## Ping on the HUD
 
 Every race packet carries its sender's round trip to the host after the car link packet (two bytes, ms; 0xffff not measured yet). The HUD shows it as P: n under each rival's ADVANTAGE, coloured green below 75 ms, yellow to 120, orange to 200, red above. Hosts and servers relay the packet whole; vs_host.c accepts the two extra bytes (a host from before them drops the packets of a newer client).
+
+## Protocol versions
+
+`VS_BUILD` (src/app.c) is the versus's protocol version, sent in every player's profile. Players on different versions show VERSION MISMATCH (with both numbers) and the host cannot start. It changes only when a change makes two machines disagree: the wire (lobby, profile, statuses, race packet) or what both ends must compute alike to stay in sync (physics and car code, start, track and ramp choice). Looks, menus, options and fixes that stay on one machine leave it alone. Bump it by one in the commit that changes the wire and add a line here; static asserts beside it hold the wire's numbers so a quiet change to them fails the build.
+
+| Version | Change |
+|---|---|
+| 169 | the first build with the mark |
+| 170 | the race packet's trailing round trip (ping), the host's statuses carrying the area card after the vote, the ping on the HUD |
