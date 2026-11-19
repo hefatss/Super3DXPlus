@@ -168,7 +168,7 @@ def build(sdk, jdk, out_apk, pkg=None, label=None, embed=None, vulkan=True, keys
         open(manifest, "w", encoding="utf-8").write(text)
     base = os.path.join(work, "base.apk")
     run([tool(bt, "aapt2"), "link", "-o", base, "-I", android_jar, "--manifest", manifest, "--min-sdk-version", str(API), "--target-sdk-version", "33",
-         "--version-code", "1", "--version-name", "1.0", res_zip], env=env)
+         "--version-code", "2", "--version-name", "1.1", res_zip], env=env)
 
     say("packing...")
     with zipfile.ZipFile(base, "a") as z:  # (the library stored, not deflated: it is mapped from the apk as it is, page-aligned by zipalign)
