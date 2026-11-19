@@ -1036,6 +1036,8 @@ static int options_load(void) {
     for (int i = 0; i < 2; ++i) G.menu.vol[4 + i] = eb[i] < 0 ? 0 : eb[i] > 10 ? 10 : eb[i];
   int ml = 1; /* (the mileage tally on or skipped, the very last line) */
   if (n >= 3 && fscanf(f, " milage %d", &ml) == 1) G.menu.milage_on = ml != 0;
+  int bl = 0; /* (the PC player's black level, the very last line) */
+  if (n >= 3 && fscanf(f, " black %d", &bl) == 1) G.menu.black_lv = bl < 0 ? 0 : bl > 10 ? 10 : bl;
   fclose(f);
   if (n < 3) return 0;
   G.menu.hires = hires != 0;
@@ -1052,8 +1054,8 @@ static int options_load(void) {
 }
 
 static void options_save(void) {
-  static int last[46] = { -1 };
-  int now[46] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
+  static int last[47] = { -1 };
+  int now[47] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
                   G.menu.bm_on, G.menu.hd_tex, G.menu.bloom_on, G.menu.ssao_on, G.menu.wet_on, G.menu.paint_on,
                   G.menu.aa4, G.menu.hires };
   for (int g = 0; g < 3; ++g)
@@ -1067,6 +1069,7 @@ static void options_save(void) {
   now[34] = G.menu.filter_on, now[35] = G.menu.filter_smooth, now[36] = G.menu.filter_counter, now[37] = G.menu.rum[0], now[38] = G.menu.rum[1], now[39] = G.menu.rum[2], now[40] = G.menu.rum[3], now[41] = G.menu.fullscreen, now[42] = G.menu.btn_steer;
   now[43] = G.menu.vol[4], now[44] = G.menu.vol[5];
   now[45] = G.menu.milage_on;
+  now[46] = G.menu.black_lv;
   if (G.options_global && !memcmp(now, last, sizeof now)) return;
   char path[1100];
   snprintf(path, sizeof path, "%s/option", G.save_dir);
@@ -1775,6 +1778,7 @@ void app_set_fullscreen(int on) {
 }
 void app_toggle_fullscreen(void) { app_set_fullscreen(!G.menu.fullscreen); }
 void app_window_row(int on) { G.menu.win_row = on != 0; }
+int app_black_level(void) { return G.menu.black_lv; }
 /* the pad's rumble now (haptic.c): nothing outside a running race */
 void app_rumble(float *low, float *high) {
   *low = *high = 0.0f;

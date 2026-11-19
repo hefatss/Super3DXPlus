@@ -47,6 +47,8 @@ int app_fullscreen(void);
 void app_set_fullscreen(int on);
 void app_toggle_fullscreen(void);
 void app_window_row(int on);
+/* the BLACK LEVEL option (0 off .. 10): the PC player pulls the picture's blacks down by it (a display or driver that lifts them) */
+int app_black_level(void);
 /* the controller rumble now, 0..1 each: the heavy motor and the light (zero outside a running race; haptic.h) */
 void app_rumble(float *low, float *high);
 /* the steering wheel's forces now (ffb.h; the platform plays them on the chosen device; zero outside a running race, the test's anywhere) */
