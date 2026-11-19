@@ -335,8 +335,8 @@ def main():
     sprites = [(EX_DISC_BASE + k, disc(tg, k, t, font)) for k, t in enumerate(DISCS)]
     sprites += [(EX_TITLE_BASE + k, headline.render_title_sprite(t)) for k, t in enumerate(TITLES)]
     sprites.append((OPTION_TITLE_ID, headline.render_title_sprite(OPTION_TITLE)))
-    # the top bars of the port's own screens (menu.c draw_title_bar: 0 key bindings, 1 volume, 2 meter and BGM, 3 HUD options, 4 information, 5 debug options, 6 vibration)
-    sprites += [(EX_TITLE_BASE + 20 + k, headline.render_title_sprite(t)) for k, t in enumerate(("Key bindings", "Volume", "Meter & BGM", "HUD options", "Information", "Debug options", "Vibration"))]
+    # the top bars of the port's own screens (menu.c draw_title_bar: 0 key bindings, 1 volume, 2 meter and BGM, 3 HUD options, 4 information, 5 debug options, 6 vibration, 7 display options)
+    sprites += [(EX_TITLE_BASE + 20 + k, headline.render_title_sprite(t)) for k, t in enumerate(("Key bindings", "Volume", "Meter & BGM", "HUD options", "Information", "Debug options", "Vibration", "Display options"))]
     # the card check's pages ("Card data confirmed (n/5)": the arcade's nine, less the settings pages the discs replaced and the two ghost battle pages, hidden; the ids are the seven pages', the ghosts' unused)
     page_no = [1, 2, 0, 0, 3, 4, 5]
     sprites += [(EX_TITLE_BASE + 9 + k, headline.render_title_sprite("Card data confirmed (%d/5)" % page_no[k])) for k in range(7)]

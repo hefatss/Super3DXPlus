@@ -1732,7 +1732,7 @@ static void cardset_open(menu_state *m) {
 
 static void card_enter(menu_state *m, int back);
 
-/* the top bar of one of the port's own screens (menu_extra.bin's titles 20 .. 26: key bindings, volume, meter and BGM, HUD options, information, debug options, vibration): 1 when drawn, else
+/* the top bar of one of the port's own screens (menu_extra.bin's titles 20 .. 27: key bindings, volume, meter and BGM, HUD options, information, debug options, vibration, display options): 1 when drawn, else
  * the caller puts its words */
 static int draw_title_bar(int bars, int k) {
   int s = anm_sprite(110100 + 20 + k);
@@ -2222,9 +2222,9 @@ static void draw_layout(const menu_state *m, int clock, float screen_w, float sc
  * each time (the graphics rows the build offers: Android's, an iPad's resolution). The touch controls are the CONTROLS screen's. ---- */
 static int option_touch(void) { return hud_style() == HUD_STYLE_TOUCH; }
 
-enum { OK_SWITCH, OK_MIP, OK_RES, OK_AA, OK_SUB, OK_INFO, OK_RUMBLE, OK_PCT, OK_WIN };
+enum { OK_SWITCH, OK_MIP, OK_RES, OK_AA, OK_SUB, OK_INFO, OK_RUMBLE, OK_PCT, OK_WIN, OK_DISPLAY };
 #define IS_RES(r) ((r)->kind == OK_RES || (r)->kind == OK_WIN) /* a choice of two, the value the chip (0 the left) */
-#define IS_SUB(r) ((r)->kind == OK_SUB || (r)->kind == OK_INFO || (r)->kind == OK_RUMBLE) /* a row that is a button to another screen */
+#define IS_SUB(r) ((r)->kind == OK_SUB || (r)->kind == OK_INFO || (r)->kind == OK_RUMBLE || (r)->kind == OK_DISPLAY) /* a row that is a button to another screen */
 typedef struct { const char *name, *note; int kind; int *v; } orow;
 
 static const char *const MIP_NAME[4] = { "SOFT", "NORMAL", "SHARP", "SHARPER" };
@@ -2257,8 +2257,8 @@ static int option_rows(menu_state *m, orow r[12]) {
   }
   if (m->res_row) r[n++] = (orow){ "RESOLUTION", "TAKES EFFECT AT THE NEXT START", OK_RES, &m->hires };
   if (m->win_row) r[n++] = (orow){ "WINDOW MODE", "WINDOWED OR FULLSCREEN (F11 OR ALT+ENTER ANYTIME)", OK_WIN, &m->fullscreen };
-  if (m->win_row) r[n++] = (orow){ "BLACK LEVEL", "PULLS THE BLACKS DOWN IF THE PICTURE LOOKS GREY AND WASHED OUT (0% IS OFF, 50% FIXES A DISPLAY SHOWING LIMITED RANGE)", OK_PCT, &m->black_lv };
   r[n++] = (orow){ "VIBRATION", "CONTROLLER RUMBLE: WALL HITS, EXPANSION JOINTS AND TIRE SLIP", OK_RUMBLE, NULL };
+  if (m->win_row) r[n++] = (orow){ "DISPLAY OPTIONS", "BLACK LEVEL, FOR A PICTURE THAT LOOKS GREY AND WASHED OUT", OK_DISPLAY, NULL };
   r[n++] = (orow){ "DEBUG OPTIONS", "ADDITIONAL INFORMATION READOUTS", OK_SUB, NULL };
   r[n++] = (orow){ "INFORMATION", "ABOUT THIS PORT", OK_INFO, NULL };
   return n;
@@ -2440,6 +2440,55 @@ static void draw_rumble(const menu_state *m, int clock, int bars, float screen_w
   draw_optlist(m, r, n, m->rum_row, OPTL_DY_DEBUG, screen_w, screen_h);
 }
 
+/* the display options screen (MENU_DISPLAY, PC): the black level, and a bar of greys to see it on */
+static int display_rows(menu_state *m, orow r[4]) {
+  r[0] = (orow){ "BLACK LEVEL", "PULLS DOWN BLACKS THAT LOOK GREY AND WASHED OUT (0% IS OFF, 50% FIXES LIMITED RANGE)", OK_PCT, &m->black_lv };
+  return 1;
+}
+
+static void display_enter(menu_state *m) {
+  go(m, MENU_DISPLAY);
+  m->disp_row = 0;
+}
+
+static void display_step(menu_state *m, const menu_in *in) {
+  if (in->back) {
+    snd_menu(SND_CANCEL);
+    option_back_to(m, OK_DISPLAY);
+    return;
+  }
+  orow r[4];
+  int n = display_rows(m, r);
+  optl_step(m, r, n, &m->disp_row, in);
+}
+
+static void draw_display(const menu_state *m, int clock, int bars, float screen_w, float screen_h) {
+  const float k = 1.6f;
+  draw_back(ID.bg, clock % 600, 1);
+  anm_draw(ID.line, clock % anm_frames(ID.line), 1);
+  draw_bottom(bars, 1);
+  int tb = draw_title_bar(bars, 7);
+  hud_ui_begin(screen_w, screen_h);
+  if (!tb) hud_ui_text("DISPLAY OPTIONS", 24.0f * k, 40.0f * k, 4.0f, 1, 1, 1, 1);
+  hud_ui_end();
+  orow r[4];
+  int n = display_rows((menu_state *)m, r);
+  draw_optlist(m, r, n, m->disp_row, OPTL_DY_DEBUG, screen_w, screen_h);
+  /* the greys: 16 steps from black to white, then a smooth ramp; the first two or three should be told apart, and the black a true black */
+  hud_ui_begin(screen_w, screen_h);
+  const float x0 = 40.0f, w = 560.0f, y0 = 190.0f;
+  for (int i = 0; i < 16; ++i) {
+    float g = (float)(i * 17) / 255.0f;
+    hud_ui_rect((x0 + w * (float)i / 16.0f) * k, y0 * k, w / 16.0f * k, 70.0f * k, g, g, g, 1.0f);
+  }
+  for (int i = 0; i < 64; ++i) {
+    float g = (float)i / 63.0f;
+    hud_ui_rect((x0 + w * (float)i / 64.0f) * k, (y0 + 78.0f) * k, w / 64.0f * k + 1.0f, 36.0f * k, g, g, g, 1.0f);
+  }
+  hud_ui_text("THE DARKEST BARS SHOULD BE TOLD APART, AND THE FIRST ONE TRUE BLACK", x0 * k, (y0 + 126.0f) * k, 1.7f, 0.85f, 0.85f, 0.85f, 1);
+  hud_ui_end();
+}
+
 static void option_step(menu_state *m, const menu_in *in) {
   orow r[12];
   int n = option_rows(m, r);
@@ -2448,6 +2497,7 @@ static void option_step(menu_state *m, const menu_in *in) {
     int kind = m->focus >= 0 && m->focus < n ? r[m->focus].kind : OK_SUB;
     if (kind == OK_INFO) portinfo_enter(m);
     else if (kind == OK_RUMBLE) rumble_enter(m);
+    else if (kind == OK_DISPLAY) display_enter(m);
     else hudopt_enter(m);
   }
 }
@@ -10811,6 +10861,11 @@ static int menu_pointer(const menu_state *m, menu_in *in) {
     optl_pointer(m, in, r, rumble_rows((menu_state *)m, r), OPTL_DY_DEBUG);
     return 1;
   }
+  if (m->screen == MENU_DISPLAY) {
+    orow r[4];
+    optl_pointer(m, in, r, display_rows((menu_state *)m, r), OPTL_DY_DEBUG);
+    return 1;
+  }
   if (m->screen == MENU_BINDINGS && bind_touch(m)) {
     touchctl_pointer(m, in);
     return 1;
@@ -11449,6 +11504,10 @@ static void step(menu_state *m) {
     rumble_step(m, &in);
     return;
   }
+  if (m->screen == MENU_DISPLAY) {
+    display_step(m, &in);
+    return;
+  }
   if (m->screen == MENU_SETTING) {
     if (m->vs.tuning && m->vs.tune_timer > 0) m->vs.tune_timer--;
     if (setting_step(m, &in)) m->deciding = FADE;
@@ -11955,7 +12014,7 @@ void menu_draw(const menu_state *m, float screen_w, float screen_h, void (*draw3
     bottom_kind = m->card_back == MENU_SETTING ? BK_GC : !cardpages_ok() ? BK_GC : m->card_page == CP_TA ? BK_BP_GC_VS : BK_BP_GC;
     break;
   case MENU_CAR: case MENU_COLOR: case MENU_COURSE: case MENU_BGM: case MENU_TEN_COURSE: case MENU_TEN_LEVEL: case MENU_GARAGE: case MENU_NAME:
-  case MENU_OPTION: case MENU_SAVE: case MENU_BINDINGS: case MENU_HUDOPT: case MENU_VOLUME: case MENU_PORTINFO: case MENU_RUMBLE:
+  case MENU_OPTION: case MENU_SAVE: case MENU_BINDINGS: case MENU_HUDOPT: case MENU_VOLUME: case MENU_PORTINFO: case MENU_RUMBLE: case MENU_DISPLAY:
     bottom_kind = BK_HS_BB_GD;
     break;
   default: bottom_kind = BK_NONE; break;
@@ -12131,6 +12190,13 @@ void menu_draw(const menu_state *m, float screen_w, float screen_h, void (*draw3
   if (m->screen == MENU_RUMBLE) {
     if (m->t < FADE) fade = (float)(m->t + 1) / FADE;
     draw_rumble(m, clock, bars, screen_w, screen_h);
+    hud_draw_menu_keys(screen_w, screen_h, m->key_held, 0, 1);
+    anm_fill(0, 0, 0, 1.0f - fade);
+    return;
+  }
+  if (m->screen == MENU_DISPLAY) {
+    if (m->t < FADE) fade = (float)(m->t + 1) / FADE;
+    draw_display(m, clock, bars, screen_w, screen_h);
     hud_draw_menu_keys(screen_w, screen_h, m->key_held, 0, 1);
     anm_fill(0, 0, 0, 1.0f - fade);
     return;

@@ -14,7 +14,7 @@ What Super3DX+ adds or changes compared with [Re3DX+](NOTICE.md). Longer explana
 - Special color selection for cars
 - Restored suspension lowering for tuned cars
 - Volume mixer
-- BLACK LEVEL option on PC (GAME OPTIONS): pulls the blacks down for displays or drivers that show the picture grey and washed out (a limited range signal on a full range monitor, Auto HDR, colour enhancement); 50% undoes a 16-235 limited range
+- DISPLAY OPTIONS on PC (GAME OPTIONS), with a BLACK LEVEL setting and a bar of greys to judge it by: pulls the blacks down for displays or drivers that show the picture grey and washed out (a limited range signal on a full range monitor, Auto HDR, colour enhancement); 50% undoes a 16-235 limited range
 - Option to skip the intro cutscenes, and restored missing intro cutscenes
 - Information screen
 
