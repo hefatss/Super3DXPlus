@@ -1788,6 +1788,12 @@ void app_set_fullscreen(int on) {
 }
 void app_toggle_fullscreen(void) { app_set_fullscreen(!G.menu.fullscreen); }
 void app_window_row(int on) { G.menu.win_row = on != 0; }
+void app_firewall_row(int on) { G.menu.fw_row = on != 0; }
+int app_firewall_ask(void) {
+  int a = G.menu.vs.fw_ask;
+  G.menu.vs.fw_ask = 0;
+  return a;
+}
 int app_black_level(void) { return G.menu.black_lv; }
 /* the pad's rumble now (haptic.c): nothing outside a running race */
 void app_rumble(float *low, float *high) {

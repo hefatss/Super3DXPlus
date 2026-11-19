@@ -9944,7 +9944,7 @@ void menu_name_ascii(const menu_state *m, char *out, int n) {
 #define VS_TEXT 107000
 #define VS_ICON 107010
 #define VS_LINE 107020
-enum { VS_KEYS = 12, VS_CONNECT = VS_KEYS, VS_RAMP_L, VS_RAMP_R, VS_KM_L, VS_KM_R, VS_START, VS_HOSTNET /* (online: host a game here) */, VS_AUTO /* (a player's: ready by itself each round) */, VS_BUTTONS };
+enum { VS_KEYS = 12, VS_CONNECT = VS_KEYS, VS_RAMP_L, VS_RAMP_R, VS_KM_L, VS_KM_R, VS_START, VS_HOSTNET /* (online: host a game here) */, VS_AUTO /* (a player's: ready by itself each round) */, VS_FIREWALL /* (Windows, hosting: allow the game through the firewall again) */, VS_BUTTONS };
 #define VS_LEFT 60.0f
 #define VS_RIGHT 520.0f
 #define VS_RIGHT_W 460.0f
@@ -9968,6 +9968,7 @@ static void vs_button(const menu_state *m, int b, float r[4]) {
     { VS_RIGHT, 568, VS_RIGHT_W, 58 }, /* START */
     { VS_LEFT + 210, 512, 200, 56 },   /* HOST ONLINE */
     { VS_LEFT, 568, 410, 44 },         /* AUTO READY */
+    { VS_LEFT, 420, 410, 44 },         /* FIREWALL */
   };
   memcpy(r, R[b - VS_KEYS], sizeof R[0]);
   if (b == VS_CONNECT && m->vs.kind == MENU_VS_NET && m->vs.state == MENU_VS_OFF) r[2] = 200; /* (the address's CONNECT leaves room for HOST ONLINE) */
@@ -10000,6 +10001,7 @@ static int vs_visible(const menu_state *m, int b) {
   if (b < VS_KEYS && m->vs.state != MENU_VS_OFF) return 0;
   if (b < VS_KEYS && m->vs.kind != MENU_VS_NET && b >= m->vs.n_found) return 0;
   if (b == VS_HOSTNET) return m->vs.kind == MENU_VS_NET && m->vs.state == MENU_VS_OFF;
+  if (b == VS_FIREWALL) return m->fw_row && m->vs.hosting && m->vs.state == MENU_VS_LOBBY;
   if (b == VS_START || b == VS_AUTO) return m->vs.state == MENU_VS_LOBBY && (b == VS_START || m->vs.me != m->vs.host); /* (a player's READY takes the host's START's place) */
   if (b > VS_CONNECT && !vs_host(m)) return 0;
   return b != VS_RAMP_L && b != VS_RAMP_R; /* the area is voted (MENU_VS_AREA) */
@@ -10070,6 +10072,9 @@ static void vs_step(menu_state *m, const menu_in *in) {
     m->vs.km += b == VS_KM_L ? -1 : 1;
     m->vs.km = m->vs.km < 1 ? 1 : m->vs.km > 50 ? 50 : m->vs.km;
     snd_menu(SND_CURSOR);
+  } else if (b == VS_FIREWALL) { /* Windows asks once when a program first listens and remembers a No: this asks again, with an admin prompt */
+    m->vs.fw_ask = 1;
+    snd_menu(SND_SELECT);
   } else if (b == VS_AUTO) { /* AUTO READY: the old way, every round ready by itself */
     m->vs.auto_ready = !m->vs.auto_ready;
     if (m->vs.auto_ready) m->vs.ready = 1;
@@ -10269,6 +10274,12 @@ static void draw_vs(const menu_state *m, int clock, int bars, float screen_w, fl
     vs_button(m, VS_AUTO, r);
     hud_ui_button(r[0], r[1], r[2], r[3], vs_lit(m, VS_AUTO));
     vs_centred(m->vs.auto_ready ? "AUTO READY: ON" : "AUTO READY: OFF", r, 2.6f, 1, 1, 1, 0.95f);
+  }
+  if (vs_visible(m, VS_FIREWALL)) { /* hosting on Windows: friends cannot join if the firewall said no */
+    vs_button(m, VS_FIREWALL, r);
+    hud_ui_button(r[0], r[1], r[2], r[3], vs_lit(m, VS_FIREWALL));
+    vs_centred("ALLOW THROUGH FIREWALL", r, 2.6f, 1, 1, 1, 0.95f);
+    hud_ui_text("IF NO ONE CAN JOIN: ASKS WINDOWS AGAIN", VS_LEFT, 468, 1.8f, 0.85f, 0.85f, 0.85f, 0.9f);
   }
   hud_ui_end();
   /* the names as the card has them, in font 5's glyphs (over the rows the UI drew; the UI's

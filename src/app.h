@@ -48,6 +48,9 @@ int app_fullscreen(void);
 void app_set_fullscreen(int on);
 void app_toggle_fullscreen(void);
 void app_window_row(int on);
+/* the Windows player's FIREWALL button in a hosted versus lobby: app_firewall_row(1) gives the screen it; app_firewall_ask is 1 once after it was pressed (the platform then has Windows allow the game through) */
+void app_firewall_row(int on);
+int app_firewall_ask(void);
 /* the BLACK LEVEL option (0 off .. 10): the PC player pulls the picture's blacks down by it (a display or driver that lifts them) */
 int app_black_level(void);
 /* the controller rumble now, 0..1 each: the heavy motor and the light (zero outside a running race; haptic.h) */

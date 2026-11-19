@@ -219,6 +219,7 @@ typedef struct {
    * Retina iPads' 2048x1536 (1), from the next start (main.m reads it from the options) */
   int res_row, hires, res_phone;
   int black_lv; /* the PC player's BLACK LEVEL row (0 off .. 10): the picture's blacks pulled down, for a display or driver that lifts them */
+  int fw_row; /* the Windows player's FIREWALL button in the versus lobby (app_firewall_row) */
   int win_row, fullscreen; /* the PC player's WINDOW MODE row (win_row), and the mode: 0 windowed, 1 fullscreen */
   /* the gear key pressed; the maker under the cursor meanwhile; the screen it was pressed on
    * (the maker select or the SAVE DATA screen) */
@@ -445,6 +446,7 @@ typedef struct {
     char name[MENU_VS_PLAYERS][17], car[MENU_VS_PLAYERS][32];
     short glyph[MENU_VS_PLAYERS][5]; /* the names' own characters (namedb.h's, -1 past the end; none from an older build) */
     unsigned char mismatch[MENU_VS_PLAYERS]; /* a player on another build (app.c VS_BUILD): no start with one */
+    int fw_ask;             /* the FIREWALL button was pressed: the platform asks Windows to allow the game through (app_firewall_ask clears it) */
     int ready, auto_ready;  /* this player is ready for the next round (a click each round; the host's START waits for every other player), and clicks it by itself (AUTO READY, saved) */
     unsigned char ready_of[MENU_VS_PLAYERS]; /* each player's, from its status */
     int racing[MENU_VS_PLAYERS];

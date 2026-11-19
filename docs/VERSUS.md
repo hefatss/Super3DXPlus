@@ -136,3 +136,7 @@ Every race packet carries its sender's round trip to the host after the car link
 ## Ready and the hang check
 
 A player (not the host) clicks READY in the lobby before each round; the host's START waits for every other player's (the lobby shows NOT READY / READY). The tick goes after every round too, unless AUTO READY (the lobby's button under READY, saved in the options) is on, which is the old behaviour. A race whose clock does not move for 30 s (loading for a machine that never finishes, nothing heard from the host) sends every machine back to the versus screen with THE RACE TIMED OUT. PLEASE TRY AGAIN; `MT3DX_VSAUTO=join` test players ready themselves.
+
+## Windows firewall
+
+Windows asks "allow this program through the firewall?" once, when the game first listens, and keeps a No as a block rule with no second question: nobody can then join a hosted game. The hosted lobby (Windows player) has an ALLOW THROUGH FIREWALL button: it runs `netsh advfirewall firewall` in an elevated command window (Windows shows its own administrator prompt) to delete the program's rules and add allow rules for it (UDP and TCP, every profile). The same by hand, in an administrator command prompt: `netsh advfirewall firewall delete rule name=all program="<path>\super3dx.exe"` and two `add rule ... dir=in action=allow program=... protocol=udp|tcp profile=any`.
