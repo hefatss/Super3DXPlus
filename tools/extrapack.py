@@ -298,6 +298,7 @@ def pack_anims(mp, elf, names, root, have):
 
 UV_BASE = 102000  # (menupack.py: the UV table's cell n)
 QMARK_ID = 123000  # (src/menu.c T_QMARK: the Special Vehicles button's logo)
+BLACKREF_ID = 123001  # (src/menu.c T_BLACKREF: the display options' reference picture, tools/media/black_level_ref.jpg)
 
 
 def qmark():
@@ -345,6 +346,7 @@ def main():
     names = mp.sprite_names(elf)
     sprites += registration_labels(elf, names, root)
     sprites.append((QMARK_ID, qmark()))
+    sprites.append((BLACKREF_ID, Image.open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "media", "black_level_ref.jpg")).convert("RGBA")))
     # the 10 out run's five soundtracks' names for the BGM select (the table's titles of their first loops, in app.c's TEN_LOOP order d, e, a, b, c),
     # in font 0 as the select's other names
     # the card's title rows by class (menu.c CARD_CLASS, CARD_CLASSP): menu.bin's own sit at 105400 and 105450, which the Special Vehicles' colour names

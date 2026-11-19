@@ -452,7 +452,7 @@ enum {
 #define MAKER_Y1 (MAKER_B + MAKER_Z * MAKER_Y1C)
 enum {
   T_MK_MARU = JID(0x1820), T_MK_WAKU = JID(0x1821), T_MK_LIGHT = JID(0x1d40), T_MK_LAST = JID(0x1a5f), T_MK_NAME = JID(0x1f55),
-  T_MK_BACK = JID(0x181f), T_MK_ARROW = JID(0x1be), T_MK_ARROW2 = JID(0x383), T_QMARK = 123000 /* (tools/extrapack.py QMARK_ID) */
+  T_MK_BACK = JID(0x181f), T_MK_ARROW = JID(0x1be), T_MK_ARROW2 = JID(0x383), T_QMARK = 123000 /* (tools/extrapack.py QMARK_ID) */, T_BLACKREF = 123001 /* (BLACKREF_ID: the display options' picture) */
 };
 static void draw_maker_hidden(const menu_state *m, int f, int sel);
 static void draw_maker_row(int f, const anm_swap *sw, int n);
@@ -2476,17 +2476,21 @@ static void draw_display(const menu_state *m, int clock, int bars, float screen_
   draw_optlist(m, r, n, m->disp_row, OPTL_DY_DEBUG, screen_w, screen_h);
   /* the greys: 16 steps from black to white, then a smooth ramp; the first two or three should be told apart, and the black a true black */
   hud_ui_begin(screen_w, screen_h);
-  const float x0 = 40.0f, w = 560.0f, y0 = 190.0f;
+  const float x0 = 24.0f, w = 288.0f, y0 = 170.0f;
   for (int i = 0; i < 16; ++i) {
     float g = (float)(i * 17) / 255.0f;
-    hud_ui_rect((x0 + w * (float)i / 16.0f) * k, y0 * k, w / 16.0f * k, 70.0f * k, g, g, g, 1.0f);
+    hud_ui_rect((x0 + w * (float)i / 16.0f) * k, y0 * k, w / 16.0f * k, 120.0f * k, g, g, g, 1.0f);
   }
   for (int i = 0; i < 64; ++i) {
     float g = (float)i / 63.0f;
-    hud_ui_rect((x0 + w * (float)i / 64.0f) * k, (y0 + 78.0f) * k, w / 64.0f * k + 1.0f, 36.0f * k, g, g, g, 1.0f);
+    hud_ui_rect((x0 + w * (float)i / 64.0f) * k, (y0 + 128.0f) * k, w / 64.0f * k + 1.0f, 36.0f * k, g, g, g, 1.0f);
   }
-  hud_ui_text("THE DARKEST BARS SHOULD BE TOLD APART, AND THE FIRST ONE TRUE BLACK", x0 * k, (y0 + 126.0f) * k, 1.7f, 0.85f, 0.85f, 0.85f, 1);
+  hud_ui_text("THE DARKEST BARS SHOULD BE", x0 * k, (y0 + 178.0f) * k, 1.7f, 0.85f, 0.85f, 0.85f, 1);
+  hud_ui_text("TOLD APART, THE FIRST TRUE BLACK", x0 * k, (y0 + 192.0f) * k, 1.7f, 0.85f, 0.85f, 0.85f, 1);
   hud_ui_end();
+  /* and a frame of the game itself to judge it by: its shadows and dark metal should not look grey */
+  int ref = anm_sprite(T_BLACKREF);
+  if (ref >= 0) anm_draw_part(ref, (float[4]){ 0, 0, (float)anm_sprite_width(ref), (float)anm_sprite_height(ref) }, (float[4]){ 344, 170, 608, 368 }, 1.0f);
 }
 
 static void option_step(menu_state *m, const menu_in *in) {
