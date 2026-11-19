@@ -530,7 +530,7 @@ static void draw_meters(const car_state *car) {
   int night = meter_night;
   /* the view: the first person one (the roof camera) has its own places for the dials, along the bottom of the screen's middle (the arcade's drawMeter
    * takes the play view); the behind view's are by the right edge */
-  const int inside = car->view == CAR_VIEW_ROOF;
+  const int inside = car->view == CAR_VIEW_ROOF && STYLE != HUD_STYLE_TOUCH; /* (the touch HUD keeps the dials where the player put them in every view) */
   const meterdb_part *parts = inside ? meter_car->parts_in[night] : meter_car->parts[night];
   const int count = inside ? meter_car->n_in[night] : meter_car->n[night];
   /* the rev lamp (the shift light of the For Racing and SPECIAL meters, yt::CMachine::GetRevLamp): lit above 0.86 of the rev limit */
@@ -2807,13 +2807,9 @@ static void draw_phys(const hud_state *h, const car_state *car, const car_input 
 
 /* the consoles the player can move (hud.h HUD_EL_*); the map, the time and the rank are drawn in draw_ta, the rival's box in draw_vs */
 static void draw_consoles(const hud_state *h, const car_state *car, const mat4 *proj) {
-  if (car->view != CAR_VIEW_ROOF) { /* (the first person view has its own places for the dials) */
-    el_begin(HUD_EL_DIALS);
-    draw_meters(car);
-    el_end();
-  } else {
-    draw_meters(car);
-  }
+  el_begin(HUD_EL_DIALS);
+  draw_meters(car);
+  el_end();
   el_begin(HUD_EL_GEAR);
   draw_shifter(car);
   el_end();
