@@ -238,8 +238,8 @@ static struct {
   menu_state menu;
   int in_menu; /* the front end is up; the race starts once a course is chosen */
   int paused;  /* the race is frozen under its pause menu */
-  int flash_held; /* the headlight flash switch is held */
-  unsigned flash_t0; /* the arcade frame it was pressed on */
+  int flash_on; /* a headlight flash (three blinks) is running */
+  unsigned flash_t0; /* the arcade frame it began on */
   int track_ready; /* as load_news.track: the loading's (the menus see seen.track) */
   int start_ready; /* as load_news.start */
   int pre_wait;    /* frames the race's title page has waited for the loading */
@@ -1872,8 +1872,8 @@ void app_key(int key, int down) {
     return;
   }
   if (key == APP_KEY_FLASH) { /* (held: the headlights flash while it is, from the press) */
-    if (down && !G.flash_held) G.flash_t0 = G.car.lamp_tick;
-    G.flash_held = down && app_racing();
+    /* a press starts three blinks; holding does not repeat them, and a press while they run does nothing: the next three need a press of their own */
+    if (down && app_racing() && G.vs_race && !G.flash_on) G.flash_on = 1, G.flash_t0 = G.car.lamp_tick;
     return;
   }
   if (!down || !app_racing()) return;
@@ -4867,10 +4867,8 @@ void app_frame(float dt) {
    * for as long, sends everyone back to the menu to try again (each machine on its own; the host's leaving closes the game for the rest) */
   if (G.vs_race && !G.vs_closed && !G.menu.finish && !G.paused) {
     double t = now_ms() * 1e-3;
-    static double hang = -1;
-    if (hang < 0) hang = getenv("MT3DX_VS_HANG") ? atof(getenv("MT3DX_VS_HANG")) : VS_HANG; /* (tests: a shorter wait; MT3DX_VS_HANG_FREEZE: the clock is taken for stuck once racing) */
-    if (G.vs_prog_t == 0 || (G.car.lamp_tick != G.vs_prog_tick && !(getenv("MT3DX_VS_HANG_FREEZE") && G.car.race.countdown <= 0.0f))) G.vs_prog_tick = G.car.lamp_tick, G.vs_prog_t = t;
-    if (t - G.vs_prog_t > hang || (net_is_open() && net_silence(t) > hang)) {
+    if (G.vs_prog_t == 0 || G.car.lamp_tick != G.vs_prog_tick) G.vs_prog_tick = G.car.lamp_tick, G.vs_prog_t = t;
+    if (t - G.vs_prog_t > VS_HANG || (net_is_open() && net_silence(t) > VS_HANG)) {
       fprintf(stderr, "versus: the race stood still for %.0f s (heard from the host %.0f s ago), back to the lobby\n", t - G.vs_prog_t, net_silence(t));
       G.vs_closed_msg = "THE RACE TIMED OUT. PLEASE TRY AGAIN";
       G.vs_closed = 1;
@@ -5053,8 +5051,8 @@ void app_frame(float dt) {
   pend_up |= in.shift_up, pend_down |= in.shift_down;
   if (in.gear) pend_gear = in.gear;
   in.shift_up = pend_up, in.shift_down = pend_down, in.gear = pend_gear;
-  if (getenv("MT3DX_FLASH") && G.vs_race && !G.flash_held && app_racing()) G.flash_held = 1, G.flash_t0 = G.car.lamp_tick; /* test: the switch held from the race's start */
-  in.flash = G.vs_race && G.flash_held && !G.paused && ((G.car.lamp_tick - G.flash_t0) / 6) % 2 == 0; /* (off 0.1 s, on 0.1 s, while the switch is held) */
+  if (G.flash_on && (!G.vs_race || (G.car.lamp_tick - G.flash_t0) / 6 >= 6)) G.flash_on = 0; /* (three blinks of 0.2 s: off 0.1 s, on 0.1 s) */
+  in.flash = G.flash_on && !G.paused && ((G.car.lamp_tick - G.flash_t0) / 6) % 2 == 0;
   for (int i = 0; i < steps; ++i) {
     if (i == steps - 1) G.car_prev = G.car; /* (the state the render interpolates from: a step ago) */
     if (G.ten_white && ++G.ten_white > 1 + TEN_WHITE_HOLD + TEN_WHITE_FADE) G.ten_white = 0;

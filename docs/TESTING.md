@@ -12,8 +12,6 @@ Set as environment variables (they do nothing unset, and silence the sound unles
 | `MT3DX_SHOT=s,s` `MT3DX_SHOT_DIR=dir` | the frame as `shot_<s>.ppm` at those seconds |
 | `MT3DX_AUTOQUIT=s` | leave after s seconds |
 | `MT3DX_BLACK=n` | the PC player's BLACK LEVEL (0..10) for this run, whatever the option says |
-| `MT3DX_FLASH=1` | a versus race with the headlight flash switch held from the start |
-| `MT3DX_VS_HANG=s` `MT3DX_VS_HANG_FREEZE=1` | the versus hang check's seconds (30); with FREEZE the race clock counts as stuck once the race runs, to see everyone sent back |
 | `MT3DX_NOREADY=1` | a `MT3DX_VSAUTO=join` player does not click READY |
 | `MT3DX_CALLTEST=km` | show the "Remaining km" callout (3 or 5) at a race's start and again every 4 s |
 | `MT3DX_AUTODRIVE=1` `MT3DX_AUTODRIVE_KMH=n` | hold the accelerator in a race (below n km/h) |

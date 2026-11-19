@@ -1132,13 +1132,6 @@ static void read_rival(car_state *c) {
       c->rival_brake[i] = M8(P.disp + 0x144);
       c->rival_spot[i] = M8(P.disp + 0x146) == 1;
       if (P.vs_race && i < P.vs_n) c->rival_spot[i] = !net_flash_of(P.vs[i].pcb); /* (a machine's own headlights as it sends them: the rival code shows them always) */
-      {
-        static int was[CAR_RIVALS];
-        if (was[i] != c->rival_spot[i]) {
-          was[i] = c->rival_spot[i];
-          NETLOG("versus flash: rival %d headlights %s\n", i, c->rival_spot[i] ? "on" : "off");
-        }
-      }
     }
   }
 }

@@ -258,4 +258,4 @@ was saved. The row is not shown on the Raspberry Pi (it always runs fullscreen) 
 
 ## Headlight flash
 
-In a versus race the interrupt switch's second job: HEADLIGHT FLASH (RACE list, L and the pad's X by default) flashes your headlights while held (they go off and on every 0.1 s); the other machines see it too. It does nothing outside a versus race.
+In a versus race the interrupt switch's second job: HEADLIGHT FLASH (RACE list, L and the pad's X by default) flashes your headlights three times (off and on, 0.2 s a blink); holding it does not repeat, the next three need another press. The other machines see it too. It does nothing outside a versus race.
