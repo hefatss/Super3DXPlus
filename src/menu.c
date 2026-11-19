@@ -1494,7 +1494,7 @@ void menu_vs_day_open(menu_state *m) {
   m->vs.day_timer = DAY_TIME;
   m->vs.day_voted = m->vs.day_t = 0;
   m->vs.day_final = -1;
-  m->sel = m->bgm;
+  m->sel = 0; /* (RANDOM: the last race's song is not the default, or the same one plays over and over) */
   m->slide = m->card_t = 0;
   if (m->zone >= m->zones) m->zone = 0;
 }
@@ -11854,7 +11854,7 @@ int menu_update(menu_state *m, float dt) {
       } else if (m->screen == MENU_COURSE) {
         m->course = m->sel;
         go(m, MENU_BGM);
-        m->sel = m->bgm;
+        m->sel = 0; /* (RANDOM, not the last race's song) */
         m->slide = m->card_t = 0;
         m->bars = 1;
       } else if (m->screen == MENU_TEN_COURSE) {
@@ -11866,7 +11866,7 @@ int menu_update(menu_state *m, float dt) {
         m->ten_level = m->sel;
         m->zone = m->zones > 1 ? ten_night(m->ten_course, m->ten_level) : 0;
         go(m, MENU_BGM);
-        m->sel = ten_pick(m) ? m->ten_level % 5 + 1 : m->bgm; /* (the 10 out run's list starts on the level's own soundtrack) */
+        m->sel = ten_pick(m) ? m->ten_level % 5 + 1 : 0; /* (RANDOM, not the last race's song; the 10 out run's list starts on the level's own soundtrack) */
         m->slide = m->card_t = 0;
         m->bars = 1;
       } else if (m->screen == MENU_ST_LEVEL) {
