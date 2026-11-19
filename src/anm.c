@@ -38,8 +38,9 @@ static struct {
   uint32_t nsprites, nanims;
   anm_anim *anims;
   GLuint prog;
-  GLint u_mul, u_add, u_tex, u_view;
+  GLint u_mul, u_add, u_tex, u_view, u_xf;
   float edge; /* anm_view */
+  float xf[3]; /* anm_xf: scale and move of the layout (1, 0, 0 as it is) */
   uint32_t wide_clock; /* the clock when a frame last drew out to the screen's sides */
 } A;
 
@@ -49,9 +50,11 @@ static const float SCALE = 1024.0f / 640.0f;
 static void use_prog(void) {
   glUseProgram(A.prog);
   glUniform2f(A.u_view, 1.0f / (512.0f + A.edge), A.edge / (512.0f + A.edge) - 1.0f);
+  glUniform3f(A.u_xf, A.xf[0], A.xf[1], A.xf[2]);
 }
 
 void anm_view(float edge) { A.edge = edge; }
+void anm_xf(float s, float tx, float ty) { A.xf[0] = s, A.xf[1] = tx, A.xf[2] = ty; }
 float anm_edge(void) { return A.edge; }
 
 int anm_wide_drawn(void) { return A.edge > 0.0f && A.wide_clock == A.clock + 1; }
@@ -139,8 +142,8 @@ bad:
 int anm_load(const char *data_dir) {
   static const char *vs =
     "attribute vec2 aPos; attribute vec2 aUV; varying vec2 vUV;\n"
-    "uniform vec2 uView;\n"
-    "void main() { vUV = aUV; gl_Position = vec4(aPos.x * uView.x + uView.y, 1.0 - aPos.y / 384.0, 0.0, 1.0); }\n";
+    "uniform vec2 uView; uniform vec3 uXf;\n"
+    "void main() { vUV = aUV; vec2 p = aPos * uXf.x + uXf.yz; gl_Position = vec4(p.x * uView.x + uView.y, 1.0 - p.y / 384.0, 0.0, 1.0); }\n";
   static const char *fs =
     "precision mediump float; uniform sampler2D uTex; uniform vec4 uMul, uAdd; varying vec2 vUV;\n"
     "void main() { gl_FragColor = clamp(texture2D(uTex, vUV) * uMul + uAdd, 0.0, 1.0); }\n";
@@ -151,6 +154,8 @@ int anm_load(const char *data_dir) {
   A.u_add = glGetUniformLocation(A.prog, "uAdd");
   A.u_tex = glGetUniformLocation(A.prog, "uTex");
   A.u_view = glGetUniformLocation(A.prog, "uView");
+  A.u_xf = glGetUniformLocation(A.prog, "uXf");
+  A.xf[0] = 1;
 
   char path[1024];
   snprintf(path, sizeof path, "%s/menu.bin", data_dir);

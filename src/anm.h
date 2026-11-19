@@ -7,6 +7,8 @@
 /* A screen wider than 4:3 (an iPhone's 3:2): the 1024x768 layout in its middle, edge more
  * on each side (0 on the iPad); anm_fill covers all of it. */
 void anm_view(float edge);
+/* Every draw after this goes through p -> s * p + (tx, ty) in the 1024x768 layout px (anm_xf(1, 0, 0) is as it was): the HUD's movable consoles (hud.c) */
+void anm_xf(float s, float tx, float ty);
 float anm_edge(void); /* that edge, in layout (1024-wide) px */
 /* 1 if this frame drew a menu bar or a full-width fill out to such a screen's sides (anm.c
  * lays those out 16:9 itself): app.c then leaves the sides as they are */

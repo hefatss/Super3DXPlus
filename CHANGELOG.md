@@ -7,6 +7,7 @@ What Super3DX+ adds or changes compared with [Re3DX+](NOTICE.md). Longer explana
 - Controller-first menus: full pad and keyboard control on every screen, with rebindable keys, pad buttons and analog axes
 - Controller input filtering, deadzone, response and button-steering speed tuning
 - Controller vibration (wall hits, expansion joints, tyre slip) with adjustable strength
+- TOUCH LAYOUT (the touch controls' screen, formerly KEY LAYOUT, issue 18): besides the three groups of touch keys, the race's gauges can be dragged and resized: the dials, the speed plate, the gear shifter, the rank and distance, the time left, the map and the rival info (50% to 200%, about their own middle; a console left alone stays exactly where it was). The arcade-style HUD is untouched.
 - CAMERA SHAKE (in the game settings): smooths out the view's shake at speed and over rough road, 0% to 100%
 - Steering wheel support (untested on hardware): wheel axes and buttons are bindable, and force feedback (steering pull, centering, damping, road effects) through SDL haptic, with a WHEEL list in KEY BINDINGS for the device and gains
 - Rebuilt main menu flow: PLAY / SETTINGS / EXIT, then car selection, then Solo / Versus / Car settings

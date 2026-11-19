@@ -67,13 +67,13 @@ a step waits for its screen, `+` repeats it until the screen changes, screen `0`
 | Title (YES / NO) | the card | | decide | | |
 | Versus lobby | the button | the button (the keypad: a row) | press it | | back |
 | Versus area vote | the card | | vote | | |
-| OPTION | the row's value (the switches: left ON, right OFF) | the row | flips a switch; KEY LAYOUT | | back |
+| OPTION | the row's value (the switches: left ON, right OFF) | the row | flips a switch; TOUCH LAYOUT | | back |
 | Key layout | moves the group | moves the group | done | next group | done |
 | Pause menu | YES / NO | | decide | | resume |
 
 The focus the controls draw is the arcade's own where there is one: its cursor ring on the name grid, the lit chip, the selected
 disc or card. The port's own screens draw a bright band (the save screen), a marker (the card settings, ">") or a lit key (the
-versus lobby, OPTION's KEY LAYOUT key); the OPTION screen brightens its row.
+versus lobby, OPTION's TOUCH LAYOUT key); the OPTION screen brightens its row.
 
 ## Not covered
 
@@ -139,9 +139,11 @@ LT are back; Tab, C, Y and Back are the view button. Race: Left / Right steer; U
 Z and LB shift down (the D-pad and stick up and down too); C, Tab, Y and Back the camera; R and pad X reset; T AT / MT; P and Start pause.
 Esc always quits (it cancels while the binding screen waits). Z is no longer an OK in the menus (it shifts down in a race).
 
-The OPTION screen shows the touch screen's own settings (steering, gyro sensitivity, slider pedals, KEY LAYOUT) only with the touch HUD
+The OPTION screen shows the touch screen's own settings (steering, gyro sensitivity, slider pedals, TOUCH LAYOUT) only with the touch HUD
 (`--hud touch`, `hud_style`); with the arcade HUD it has KEY BINDINGS and the graphics. The row the controls are on has an orange bar at its
 left and a line under it (the keys are lit).
+
+TOUCH LAYOUT: drag a group of keys or a gauge to move it (a finger, or the d-pad moves the chosen one 8 px; the view key picks the next), the - and + buttons size it (keys 60-160%, gauges 50-200%). It is saved in the options file (`keys` for the groups, `hudel` for the seven gauges). On a PC, `--hud touch` shows the same screen (`MT3DX_GOTO=43`).
 
 Test hooks: `MT3DX_KEYS="<s>:<key name>;..."` presses and releases that keyboard key (SDL names: Return, Left, Delete, Escape, a) at
 those seconds, through the same path as a real key.

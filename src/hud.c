@@ -84,8 +84,22 @@ static void unkey(int side, float x, float y, float *lx, float *ly) {
   *ly = (y - o.y) / o.h;
 }
 
+/* the movable consoles (hud.h HUD_EL_*): while one is being drawn (el_begin) every projection screen_ortho gives has its move and scale in it, p -> EL_S * p + (EL_TX, EL_TY) */
+static int EL_ON;
+static float EL_S = 1, EL_TX, EL_TY;
+static float elx(float x) { return EL_ON ? x * EL_S + EL_TX : x; } /* (a layout point, and a length, through the active one) */
+static float ely(float y) { return EL_ON ? y * EL_S + EL_TY : y; }
+static float eln(float n) { return EL_ON ? n * EL_S : n; }
+
 /* the projection of the layout's 1024x768 on the whole screen */
-static mat4 screen_ortho(float w, float h) { return mat4_ortho(-EDGE, w + EDGE, h, 0, -1, 1); }
+static mat4 screen_ortho(float w, float h) {
+  mat4 o = mat4_ortho(-EDGE, w + EDGE, h, 0, -1, 1);
+  if (!EL_ON) return o;
+  mat4 m = mat4_identity();
+  m.m[0] = m.m[5] = EL_S;
+  m.m[12] = EL_TX, m.m[13] = EL_TY;
+  return mat4_mul(o, m);
+}
 
 /* ... and of a side's touch keys, drawn at their layout rects (key()) */
 static mat4 key_ortho(float w, float h, int side) {
@@ -253,6 +267,44 @@ static char navi_dir[1024];
 
 static GLuint prog, tex_prog;
 static GLint u_proj, u_color, u_tproj, u_tex, u_mul, u_add;
+static float ui_w = 1024, ui_h = 768; /* (the screen the HUD draws to: hud_draw's) */
+static rect el_base(int el);
+static rect el_placed(int el, float k, float dx, float dy);
+
+/* the player's own place for each console (hud_el_set): scaled about its own middle, then moved; the touch style only, and as it was while at the defaults */
+static float UEL_K[HUD_ELEMENTS] = { 1, 1, 1, 1, 1, 1, 1 }, UEL_DX[HUD_ELEMENTS], UEL_DY[HUD_ELEMENTS];
+
+/* the projections of both programs and the anm's, with the active console's transform (or none) */
+static void el_apply(void) {
+  GLint cur = 0;
+  glGetIntegerv(GL_CURRENT_PROGRAM, &cur);
+  mat4 p = screen_ortho(ui_w, ui_h);
+  glUseProgram(prog);
+  glUniformMatrix4fv(u_proj, 1, GL_FALSE, p.m);
+  if (tex_prog) {
+    glUseProgram(tex_prog);
+    glUniformMatrix4fv(u_tproj, 1, GL_FALSE, p.m);
+  }
+  glUseProgram((GLuint)cur);
+  anm_xf(EL_ON ? EL_S : 1.0f, EL_ON ? EL_TX : 0.0f, EL_ON ? EL_TY : 0.0f);
+}
+
+/* the transform of console el: about the middle of its own box */
+static int el_moved(int el) { return STYLE == HUD_STYLE_TOUCH && (UEL_K[el] != 1.0f || UEL_DX[el] != 0.0f || UEL_DY[el] != 0.0f); }
+
+static void el_begin(int el) {
+  if (!el_moved(el)) return;
+  rect b = el_base(el);
+  float cx = b.x + b.w * 0.5f, cy = b.y + b.h * 0.5f, s = UEL_K[el];
+  EL_ON = 1, EL_S = s, EL_TX = cx * (1 - s) + UEL_DX[el], EL_TY = cy * (1 - s) + UEL_DY[el];
+  el_apply();
+}
+
+static void el_end(void) {
+  if (!EL_ON) return;
+  EL_ON = 0;
+  el_apply();
+}
 
 int hud_gl_init(void) {
   static const char *vs =
@@ -1020,7 +1072,7 @@ static void draw_navi(const hud_state *h, const car_race *r) {
   GLint vp[4];
   glGetIntegerv(GL_VIEWPORT, vp);
   float sx = (float)vp[2] / (h->screen_w + 2 * EDGE), sy = (float)vp[3] / h->screen_h;
-  float x0 = tx(17), y0 = ty(285) - MAP_UP, w = 88 * HUD_K, hh = 82 * HUD_K;
+  float x0 = elx(tx(17)), y0 = ely(ty(285) - MAP_UP), w = eln(88 * HUD_K), hh = eln(82 * HUD_K); /* (through the map's own move and scale) */
   GLint wx = vp[0] + (GLint)((x0 + EDGE) * sx + 0.5f), wy = vp[1] + (GLint)((h->screen_h - y0 - hh) * sy + 0.5f);
   GLsizei ww = (GLsizei)(w * sx + 0.5f), wh = (GLsizei)(hh * sy + 0.5f);
   glViewport(wx, wy, ww, wh);
@@ -1259,7 +1311,6 @@ static const short VS_BOX_X[CAR_RIVALS] = { 575, 463, 361 };
 static const unsigned char VS_GRADE_UV[5] = { 0x59, 0x58, 0x57, 0x5a, 0x5b };
 static hud_vs_box vs_box[CAR_RIVALS];
 static int vs_n;
-static float ui_w = 1024, ui_h = 768; /* (the screen the HUD draws to: hud_draw's) */
 static int ping_on = 1;
 void hud_set_ping(int on) { ping_on = on != 0; }
 
@@ -1569,9 +1620,13 @@ static void draw_junction(const car_state *car) {
 static void draw_vs(const car_state *car) {
   const car_race *r = &car->race;
   if (!vs_n || (r->play_state != 1 && r->play_state != 2)) return;
+  el_begin(HUD_EL_RANK);
   draw_vs_place(r);
+  el_end();
+  el_begin(HUD_EL_RIVAL);
   for (int i = 0; i < vs_n; ++i)
     if (r->vs_on[i]) draw_vs_box(i, r->vs_gap[i]);
+  el_end();
   draw_junction(car);
   draw_vs_last(car, 0);
 }
@@ -2275,21 +2330,32 @@ static void draw_ta(const hud_state *h, const car_state *car, const mat4 *proj) 
   const car_race *r = &car->race;
   if (!SPR[SPR_TILL_GOAL].tex) return;
   glEnableVertexAttribArray(1);
+  (void)proj;
   if (ten_level < 0 && !vs_n) {
+    el_begin(HUD_EL_RANK);
     draw_till_goal(r->remain);
     draw_times(r);
+    el_end();
   }
+  el_begin(HUD_EL_MAP);
   map_blit(SPR_MAP_WAKU, 15, 262);
   draw_navi(h, r);
   glUseProgram(tex_prog);
-  glUniformMatrix4fv(u_tproj, 1, GL_FALSE, proj->m);
+  el_apply(); /* (the projection again: the map's own drawing changed the program) */
   glEnableVertexAttribArray(1);
   /* the black box over the map: the course's name, in a story race the road's (S2DInfoMap +0x14) */
   if (!ta_story && ta_course >= 0 && ta_course < CAR_COURSES) map_blit(SPR_MAP_NAME + ta_course, 15, 266);
   if (ta_story && r->map_text >= 1 && r->map_text <= 19) map_blit(SPR_MAP_TEXT + r->map_text - 1, 15, 266);
+  el_end();
+  el_begin(HUD_EL_TIME);
   draw_time_left(r->time_left);
+  el_end();
   /* (the arcade's story race has the pill under the rival's box too, and no record times) */
-  if (!ta_story && ten_level < 0) draw_records(1);
+  if (!ta_story && ten_level < 0) {
+    el_begin(HUD_EL_RIVAL); /* (the records and the pill under them: the versus' boxes' place) */
+    draw_records(1);
+    el_end();
+  }
   else if (ta_story && ten_level < 0 && STYLE == HUD_STYLE_ARCADE) draw_records(0);
   draw_sign(r);
   if (r->state == CAR_RACE_RUN) draw_time_extend(r->total);
@@ -2739,6 +2805,27 @@ static void draw_phys(const hud_state *h, const car_state *car, const car_input 
   hud_ui_end();
 }
 
+/* the consoles the player can move (hud.h HUD_EL_*); the map, the time and the rank are drawn in draw_ta, the rival's box in draw_vs */
+static void draw_consoles(const hud_state *h, const car_state *car, const mat4 *proj) {
+  if (car->view != CAR_VIEW_ROOF) { /* (the first person view has its own places for the dials) */
+    el_begin(HUD_EL_DIALS);
+    draw_meters(car);
+    el_end();
+  } else {
+    draw_meters(car);
+  }
+  el_begin(HUD_EL_GEAR);
+  draw_shifter(car);
+  el_end();
+  el_begin(HUD_EL_PLATE);
+  draw_plate(car);
+  el_end();
+  draw_ta(h, car, proj);
+  el_begin(HUD_EL_PLATE);
+  draw_plate_text();
+  el_end();
+}
+
 void hud_draw(const hud_state *h, const car_state *car, const car_input *in, float fps) {
   ui_w = h->screen_w, ui_h = h->screen_h;
   glUseProgram(prog);
@@ -2781,13 +2868,7 @@ void hud_draw(const hud_state *h, const car_state *car, const car_input *in, flo
     tint_add(0, 0, 0);
     glActiveTexture(GL_TEXTURE0);
   }
-  if (tex_prog && consoles) {
-    draw_meters(car);
-    draw_shifter(car);
-    draw_plate(car);
-    draw_ta(h, car, &proj);
-    draw_plate_text();
-  }
+  if (tex_prog && consoles) draw_consoles(h, car, &proj);
   /* the AT/MT switch (a touch key of the port, not a console: shown while the 10-in-a-row
    * hides the consoles too) shows the gearbox in use with the shifter's own tag */
   int tag = car->manual ? SPR_TAG_MT : SPR_TAG_AT;
@@ -3223,7 +3304,32 @@ void hud_draw_layout(float screen_w, float screen_h, int gyro, int sel) {
   glEnableVertexAttribArray(0);
   draw_keys(&h, 0, 1);
   glUniformMatrix4fv(u_proj, 1, GL_FALSE, proj.m);
-  /* each group's box, the chosen one's orange */
+  /* the consoles as they will be (a car standing still: whatever the race last had loaded) */
+  ui_w = screen_w, ui_h = screen_h;
+  if (STYLE == HUD_STYLE_TOUCH && tex_prog) {
+    static car_state still;
+    still.view = CAR_VIEW_BEHIND;
+    glUseProgram(tex_prog);
+    glUniformMatrix4fv(u_tproj, 1, GL_FALSE, proj.m);
+    glUniform1i(u_tex, 0);
+    tint(1, 1, 1, 1);
+    tint_add(0, 0, 0);
+    glActiveTexture(GL_TEXTURE0);
+    int keep_style = ten_level;
+    ten_level = -1; /* (the plain race's consoles) */
+    draw_consoles(&h, &still, &proj);
+    ten_level = keep_style;
+    glUseProgram(prog);
+    glUniformMatrix4fv(u_proj, 1, GL_FALSE, proj.m);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glDisableVertexAttribArray(1);
+    glDisableVertexAttribArray(2);
+    glEnableVertexAttribArray(0);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  }
+  /* each group's and console's box, the chosen one's orange */
   for (int g = 0; g < HUD_KEY_GROUPS; ++g) {
     rect r = key(group_rect(g, h.gyro), g);
     r = (rect){ r.x - 6, r.y - 6, r.w + 12, r.h + 12 };
@@ -3231,7 +3337,88 @@ void hud_draw_layout(float screen_w, float screen_h, int gyro, int sel) {
     else color(1, 1, 1, 0.35f);
     frame_rect(r, g == sel ? 4 : 2);
   }
+  if (STYLE == HUD_STYLE_TOUCH)
+    for (int el = 0; el < HUD_ELEMENTS; ++el) {
+      rect r = el_placed(el, UEL_K[el], UEL_DX[el], UEL_DY[el]);
+      r = (rect){ r.x - 3, r.y - 3, r.w + 6, r.h + 6 };
+      if (HUD_KEY_GROUPS + el == sel) color(1.0f, 0.42f, 0.05f, 0.95f);
+      else color(0.5f, 0.85f, 1.0f, 0.45f);
+      frame_rect(r, HUD_KEY_GROUPS + el == sel ? 4 : 2);
+    }
   glDisable(GL_BLEND);
+  if (STYLE == HUD_STYLE_TOUCH) { /* (their names, small, on the corner of each box) */
+    hud_ui_begin(screen_w, screen_h);
+    for (int el = 0; el < HUD_ELEMENTS; ++el) {
+      rect r = el_placed(el, UEL_K[el], UEL_DX[el], UEL_DY[el]);
+      hud_ui_text(hud_el_name(el), r.x, r.y - 14, 1.6f, 1, 1, 1, 0.85f);
+    }
+    hud_ui_end();
+  }
+}
+
+/* ---- the movable consoles (hud.h HUD_EL_*) ---- */
+/* where a console is by default, in layout px (a box round what it draws: the dragging, its outline and the scaling's middle use it) */
+static rect el_base(int el) {
+  const float K = HUD_K;
+  switch (el) {
+  case HUD_EL_DIALS: {
+    float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+    if (meter_car)
+      for (int i = 0; i < meter_car->n[meter_night]; ++i) {
+        const meterdb_part *p = &meter_car->parts[meter_night][i];
+        float cx = CLUSTER_X + (p->x - 560) * K, cy = CLUSTER_Y + (p->y - 228) * K, hw = 0.5f * METER[0][i].w * K, hh = 0.5f * METER[0][i].h * K;
+        if (p->input == METER_LAMP_ON || p->input == METER_LAMP_OFF) continue;
+        if (!METER[0][i].tex) continue;
+        x0 = fminf(x0, cx - hw), y0 = fminf(y0, cy - hh), x1 = fmaxf(x1, cx + hw), y1 = fmaxf(y1, cy + hh);
+      }
+    if (x1 > x0) return (rect){ x0, y0, x1 - x0, y1 - y0 };
+    return (rect){ CLUSTER_X + (450 - 560) * K, CLUSTER_Y + (170 - 228) * K, 192 * K, 232 * K }; /* (no dials loaded yet: about where they are) */
+  }
+  case HUD_EL_PLATE: {
+    float w = SPR[SPR_PLATE].w > 0 ? SPR[SPR_PLATE].w * K : 190 * K, h = SPR[SPR_PLATE].h > 0 ? SPR[SPR_PLATE].h * K : 56 * K;
+    return (rect){ 1024 + EDGE - w, INFO_Y, w, h };
+  }
+  case HUD_EL_GEAR: return (rect){ SHIFT_X - 30 * SHIFT_K, SHIFT_Y - 36 * SHIFT_K, 104 * SHIFT_K, 80 * SHIFT_K };
+  case HUD_EL_RANK: return (rect){ tx(6), ty(8), 150 * K, 104 * K };
+  case HUD_EL_TIME: return (rect){ tx(12), ty(360) - MAP_UP, 100 * K, 34 * K };
+  case HUD_EL_MAP: return (rect){ tx(12), ty(259) - MAP_UP, 98 * K, 104 * K };
+  default: return (rect){ 1024 + EDGE - (640 - 450) * K, ty(12), 190 * K, 164 * K };
+  }
+}
+
+static const char *const EL_NAME[HUD_ELEMENTS] = { "DIALS", "SPEED PLATE", "GEAR SHIFTER", "RANK", "TIME LEFT", "MAP", "RIVAL INFO" };
+const char *hud_el_name(int el) { return el >= 0 && el < HUD_ELEMENTS ? EL_NAME[el] : ""; }
+
+void hud_el_set(int el, float k, float dx, float dy) {
+  if (el < 0 || el >= HUD_ELEMENTS) return;
+  UEL_K[el] = k < HUD_EL_K_MIN ? HUD_EL_K_MIN : k > HUD_EL_K_MAX ? HUD_EL_K_MAX : k;
+  UEL_DX[el] = dx, UEL_DY[el] = dy;
+}
+
+/* a console's box where it is on screen with k, dx, dy */
+static rect el_placed(int el, float k, float dx, float dy) {
+  rect b = el_base(el);
+  float cx = b.x + b.w * 0.5f, cy = b.y + b.h * 0.5f;
+  return (rect){ cx + dx - b.w * 0.5f * k, cy + dy - b.h * 0.5f * k, b.w * k, b.h * k };
+}
+
+int hud_el_hit(float x, float y) {
+  if (STYLE != HUD_STYLE_TOUCH) return -1;
+  for (int el = HUD_ELEMENTS - 1; el >= 0; --el) {
+    rect r = el_placed(el, UEL_K[el], UEL_DX[el], UEL_DY[el]);
+    if (x >= r.x - 8 && x <= r.x + r.w + 8 && y >= r.y - 8 && y <= r.y + r.h + 8) return el;
+  }
+  return -1;
+}
+
+void hud_el_clamp(int el, float k, float *dx, float *dy) {
+  if (el < 0 || el >= HUD_ELEMENTS) return;
+  k = k < HUD_EL_K_MIN ? HUD_EL_K_MIN : k > HUD_EL_K_MAX ? HUD_EL_K_MAX : k;
+  rect r = el_placed(el, k, *dx, *dy);
+  if (r.x + r.w > 1024 + EDGE) *dx -= r.x + r.w - (1024 + EDGE);
+  if (r.x < -EDGE) *dx += -EDGE - r.x;
+  if (r.y + r.h > 768) *dy -= r.y + r.h - 768;
+  if (r.y < 0) *dy -= r.y;
 }
 
 /* the shift gate's centre on the arcade's screen (cons_g_mission, 1024x768 px) */

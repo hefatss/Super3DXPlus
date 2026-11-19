@@ -1049,6 +1049,15 @@ static int options_load(void) {
   if (n >= 3 && fscanf(f, " netopt %d %d", &no[0], &no[1]) == 2) G.menu.net_ping = no[0] != 0, G.menu.net_log = no[1] != 0;
   int cs = 10; /* (the camera shake, after it) */
   if (n >= 3 && fscanf(f, " camshake %d", &cs) == 1) G.menu.cam_shake = cs < 0 ? 0 : cs > 10 ? 10 : cs;
+  int hl[21]; /* (the consoles' layout, after it: size percent, then move x and y, of each of the seven) */
+  if (n >= 3 && fscanf(f, " hudel %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", &hl[0], &hl[1], &hl[2], &hl[3], &hl[4], &hl[5], &hl[6], &hl[7], &hl[8], &hl[9], &hl[10], &hl[11],
+                       &hl[12], &hl[13], &hl[14], &hl[15], &hl[16], &hl[17], &hl[18], &hl[19], &hl[20]) == 21)
+    for (int e = 0; e < 7; ++e) {
+      int k = hl[e * 3];
+      G.menu.el_k[e] = k < 50 ? 50 : k > 200 ? 200 : k;
+      G.menu.el_dx[e] = hl[e * 3 + 1] < -2000 || hl[e * 3 + 1] > 2000 ? 0 : hl[e * 3 + 1];
+      G.menu.el_dy[e] = hl[e * 3 + 2] < -2000 || hl[e * 3 + 2] > 2000 ? 0 : hl[e * 3 + 2];
+    }
   fclose(f);
   if (n < 3) return 0;
   G.menu.hires = hires != 0;
@@ -1065,8 +1074,8 @@ static int options_load(void) {
 }
 
 static void options_save(void) {
-  static int last[51] = { -1 };
-  int now[51] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
+  static int last[72] = { -1 };
+  int now[72] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
                   G.menu.bm_on, G.menu.hd_tex, G.menu.bloom_on, G.menu.ssao_on, G.menu.wet_on, G.menu.paint_on,
                   G.menu.aa4, G.menu.hires };
   for (int g = 0; g < 3; ++g)
@@ -1084,6 +1093,7 @@ static void options_save(void) {
   now[47] = G.menu.vs.auto_ready;
   now[48] = G.menu.net_ping, now[49] = G.menu.net_log;
   now[50] = G.menu.cam_shake;
+  for (int e = 0; e < 7; ++e) now[51 + e * 3] = G.menu.el_k[e], now[52 + e * 3] = G.menu.el_dx[e], now[53 + e * 3] = G.menu.el_dy[e];
   if (G.options_global && !memcmp(now, last, sizeof now)) return;
   char path[1100];
   snprintf(path, sizeof path, "%s/option", G.save_dir);
@@ -1110,6 +1120,9 @@ static void options_save(void) {
   fprintf(f, "vsauto %d\n", now[47]);
   fprintf(f, "netopt %d %d\n", now[48], now[49]);
   fprintf(f, "camshake %d\n", now[50]);
+  fprintf(f, "hudel");
+  for (int i = 51; i < 72; ++i) fprintf(f, " %d", now[i]);
+  fprintf(f, "\n");
   fclose(f);
   memcpy(last, now, sizeof last);
   G.options_global = 1;
@@ -1914,6 +1927,7 @@ static void hud_options(void) {
   /* the KEY LAYOUT's (menu.c MENU_LAYOUT) */
   for (int g = 0; g < HUD_KEY_GROUPS; ++g)
     hud_layout_set(g, (float)G.menu.key_k[g] * 0.01f, (float)G.menu.key_dx[g], (float)G.menu.key_dy[g]);
+  for (int e = 0; e < HUD_ELEMENTS; ++e) hud_el_set(e, (float)G.menu.el_k[e] * 0.01f, (float)G.menu.el_dx[e], (float)G.menu.el_dy[e]);
 }
 
 int app_screen(void) { return G.in_menu ? (int)G.menu.screen : -1; }
@@ -4256,6 +4270,11 @@ static void menu_frame(float dt, double frame_start) {
     hud_set_meter(menu_meter(&G.menu));
     hud_set_car(chosen->pack, G.track_zone == 1);
     hud_in = hud_warm(G.hud.screen_w, G.hud.screen_h, HUD_WARM_STEP) == 0;
+  }
+  if (G.menu.screen == MENU_LAYOUT) { /* (the touch layout editor shows the dials: the chosen car's) */
+    hud_set_meter(menu_meter(&G.menu));
+    hud_set_car(chosen->pack, 0);
+    hud_warm(G.hud.screen_w, G.hud.screen_h, HUD_WARM_STEP);
   }
   int all_in = start_in && hud_in && car_pack(chosen->pack) && paint_ready(chosen->pack, chosen->paint);
   int rows[RACE_ROWS], n_rival = rival_rows(G.rival, rows);

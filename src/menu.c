@@ -2101,6 +2101,14 @@ static const float LAY_BUTTON[LAY_BUTTONS][4] = { { 296, 356, 110, 56 }, { 618, 
                                                   { 524, 426, 204, 56 } };
 static const char *const LAY_GROUP[3] = { "TOP KEYS", "LEFT KEYS", "RIGHT KEYS" };
 #define LAY_K_STEP 10
+/* what the editor moves: the three key groups, then the consoles (hud.h HUD_EL_*), the chosen one lay_sel */
+#define LAY_ITEMS (HUD_KEY_GROUPS + HUD_ELEMENTS)
+static int *lay_k(menu_state *m, int g) { return g < HUD_KEY_GROUPS ? &m->key_k[g] : &m->el_k[g - HUD_KEY_GROUPS]; }
+static int *lay_dx(menu_state *m, int g) { return g < HUD_KEY_GROUPS ? &m->key_dx[g] : &m->el_dx[g - HUD_KEY_GROUPS]; }
+static int *lay_dy(menu_state *m, int g) { return g < HUD_KEY_GROUPS ? &m->key_dy[g] : &m->el_dy[g - HUD_KEY_GROUPS]; }
+static const char *lay_name(int g) { return g < HUD_KEY_GROUPS ? LAY_GROUP[g] : hud_el_name(g - HUD_KEY_GROUPS); }
+static int lay_kmin(int g) { return (int)((g < HUD_KEY_GROUPS ? HUD_KEY_K_MIN : HUD_EL_K_MIN) * 100 + 0.5f); }
+static int lay_kmax(int g) { return (int)((g < HUD_KEY_GROUPS ? HUD_KEY_K_MAX : HUD_EL_K_MAX) * 100 + 0.5f); }
 
 static int layout_button(float x, float y) {
   for (int b = 0; b < LAY_BUTTONS; ++b) {
@@ -2111,20 +2119,22 @@ static int layout_button(float x, float y) {
 }
 
 static void layout_clamp(menu_state *m, int g) {
-  float dx = (float)m->key_dx[g], dy = (float)m->key_dy[g];
-  hud_layout_clamp(g, m->gyro == HUD_STEER_GYRO, (float)m->key_k[g] * 0.01f, &dx, &dy);
-  m->key_dx[g] = (int)floorf(dx + 0.5f), m->key_dy[g] = (int)floorf(dy + 0.5f);
+  float dx = (float)*lay_dx(m, g), dy = (float)*lay_dy(m, g), k = (float)*lay_k(m, g) * 0.01f;
+  if (g < HUD_KEY_GROUPS) hud_layout_clamp(g, m->gyro == HUD_STEER_GYRO, k, &dx, &dy);
+  else hud_el_clamp(g - HUD_KEY_GROUPS, k, &dx, &dy);
+  *lay_dx(m, g) = (int)floorf(dx + 0.5f), *lay_dy(m, g) = (int)floorf(dy + 0.5f);
 }
 
 static void layout_apply(const menu_state *m) {
   for (int g = 0; g < HUD_KEY_GROUPS; ++g) hud_layout_set(g, (float)m->key_k[g] * 0.01f, (float)m->key_dx[g], (float)m->key_dy[g]);
+  for (int e = 0; e < HUD_ELEMENTS; ++e) hud_el_set(e, (float)m->el_k[e] * 0.01f, (float)m->el_dx[e], (float)m->el_dy[e]);
 }
 
 static void layout_enter(menu_state *m) {
   go(m, MENU_LAYOUT);
   m->lay_drag = m->lay_tap = 0;
   m->lay_touch = 0;
-  if (m->lay_sel < 0 || m->lay_sel >= HUD_KEY_GROUPS) m->lay_sel = HUD_KEYS_RIGHT;
+  if (m->lay_sel < 0 || m->lay_sel >= LAY_ITEMS) m->lay_sel = HUD_KEYS_RIGHT;
   layout_apply(m);
 }
 
@@ -2139,15 +2149,19 @@ static int layout_touch(menu_state *m, void *id, int phase, float x, float y) {
     }
     layout_apply(m);
     int g = hud_layout_hit(m->gyro == HUD_STEER_GYRO, x, y);
-    if (g < 0) return 0;
+    if (g < 0) { /* (no keys there: a console) */
+      int e = hud_el_hit(x, y);
+      if (e < 0) return 0;
+      g = HUD_KEY_GROUPS + e;
+    }
     m->lay_sel = g;
     m->lay_drag = 1, m->lay_touch = id;
-    m->lay_x = x - (float)m->key_dx[g], m->lay_y = y - (float)m->key_dy[g];
+    m->lay_x = x - (float)*lay_dx(m, g), m->lay_y = y - (float)*lay_dy(m, g);
     return 1;
   }
   if (!m->lay_drag || id != m->lay_touch) return phase != TOUCH_BEGAN;
   int g = m->lay_sel;
-  m->key_dx[g] = (int)floorf(x - m->lay_x + 0.5f), m->key_dy[g] = (int)floorf(y - m->lay_y + 0.5f);
+  *lay_dx(m, g) = (int)floorf(x - m->lay_x + 0.5f), *lay_dy(m, g) = (int)floorf(y - m->lay_y + 0.5f);
   layout_clamp(m, g);
   layout_apply(m);
   if (phase == TOUCH_ENDED) {
@@ -2168,28 +2182,29 @@ static void layout_step(menu_state *m, const menu_in *in) {
     return;
   }
   int g = m->lay_sel;
-  if (in->view) { /* the next group of keys */
+  if (in->view) { /* the next group of keys, or console */
     snd_menu(SND_CURSOR);
-    m->lay_sel = (g + 1) % HUD_KEY_GROUPS;
+    m->lay_sel = (g + 1) % LAY_ITEMS;
     return;
   }
   if (in->dx || in->dy) { /* the group moves (kept on the screen) */
-    m->key_dx[g] += 8 * in->dx, m->key_dy[g] += 8 * in->dy;
+    *lay_dx(m, g) += 8 * in->dx, *lay_dy(m, g) += 8 * in->dy;
     layout_clamp(m, g);
     m->garage_changed = 1;
     layout_apply(m);
     return;
   }
   if (b == LAY_SMALLER || b == LAY_BIGGER) {
-    int k = m->key_k[g] + (b == LAY_BIGGER ? LAY_K_STEP : -LAY_K_STEP);
-    if (k < (int)(HUD_KEY_K_MIN * 100 + 0.5f) || k > (int)(HUD_KEY_K_MAX * 100 + 0.5f)) return;
+    int k = *lay_k(m, g) + (b == LAY_BIGGER ? LAY_K_STEP : -LAY_K_STEP);
+    if (k < lay_kmin(g) || k > lay_kmax(g)) return;
     snd_menu(SND_CURSOR);
-    m->key_k[g] = k;
+    *lay_k(m, g) = k;
     layout_clamp(m, g);
     m->garage_changed = 1;
   } else if (b == LAY_RESET) {
     snd_menu(SND_SELECT);
     for (int i = 0; i < HUD_KEY_GROUPS; ++i) m->key_k[i] = 100, m->key_dx[i] = m->key_dy[i] = 0;
+    for (int i = 0; i < HUD_ELEMENTS; ++i) m->el_k[i] = 100, m->el_dx[i] = m->el_dy[i] = 0;
     m->garage_changed = 1;
   }
   layout_apply(m);
@@ -2202,15 +2217,17 @@ static void layout_text_mid(const char *s, float y, float px, float r, float g, 
 static void draw_layout(const menu_state *m, int clock, float screen_w, float screen_h) {
   draw_back(ID.bg, clock % 600, 1);
   anm_fill(0, 0, 0, 0.6f);
+  layout_apply(m);
+  hud_draw_layout(screen_w, screen_h, m->gyro, m->lay_sel >= 0 && m->lay_sel < LAY_ITEMS ? m->lay_sel : 0); /* (the keys and consoles first: the panel over them) */
   hud_ui_begin(screen_w, screen_h);
   const float *p = LAY_PANEL;
   hud_ui_rect(p[0], p[1], p[2], p[3], 0.03f, 0.04f, 0.06f, 0.82f);
   hud_ui_rect(p[0], p[1], p[2], 3, 1.0f, 0.42f, 0.05f, 0.95f);
-  layout_text_mid("KEY LAYOUT", p[1] + 16, 4, 1, 1, 1);
-  layout_text_mid("DRAG A GROUP OF KEYS TO MOVE IT", p[1] + 62, 2, 0.8f, 0.8f, 0.8f);
+  layout_text_mid("TOUCH LAYOUT", p[1] + 16, 4, 1, 1, 1);
+  layout_text_mid("DRAG A KEY GROUP OR A GAUGE TO MOVE IT", p[1] + 62, 2, 0.8f, 0.8f, 0.8f);
   char line[48];
-  int g = m->lay_sel >= 0 && m->lay_sel < 3 ? m->lay_sel : 0;
-  layout_text_mid(LAY_GROUP[g], p[1] + 92, 2.5f, 1.0f, 0.55f, 0.15f);
+  int g = m->lay_sel >= 0 && m->lay_sel < LAY_ITEMS ? m->lay_sel : 0;
+  layout_text_mid(lay_name(g), p[1] + 92, 2.5f, 1.0f, 0.55f, 0.15f);
   static const char *const LABEL[LAY_BUTTONS] = { "-", "+", "RESET ALL", "DONE" };
   for (int b = 0; b < LAY_BUTTONS; ++b) {
     const float *r = LAY_BUTTON[b];
@@ -2219,11 +2236,9 @@ static void draw_layout(const menu_state *m, int clock, float screen_w, float sc
     hud_ui_text(LABEL[b], r[0] + 0.5f * (r[2] - hud_ui_text_width(LABEL[b], px)), r[1] + 0.5f * (r[3] - 7.0f * px), px, 1, 1,
                 1, 1);
   }
-  snprintf(line, sizeof line, "SIZE %d", m->key_k[g]);
+  snprintf(line, sizeof line, "SIZE %d", *lay_k((menu_state *)m, g));
   layout_text_mid(line, LAY_BUTTON[0][1] + 0.5f * (LAY_BUTTON[0][3] - 7.0f * 3), 3, 1, 1, 1);
   hud_ui_end();
-  layout_apply(m);
-  hud_draw_layout(screen_w, screen_h, m->gyro, g);
 }
 
 /* ---- the game options (MENU_OPTION, the settings selector's GAME OPTIONS): a list of rows, each a switch (ON / OFF) or a few chips, then the
@@ -2929,7 +2944,7 @@ static void axis_apply(menu_state *m, int axis) {
 static int bind_touch(const menu_state *m) { return option_touch() && m->ctl_touch; }
 static const char *const TC_STEER[HUD_STEER_MODES] = { "BUTTONS", "GYRO", "WHEEL", "STICK" };
 enum { TC_STEERING, TC_SENS, TC_PEDALS, TC_LAYOUT, TC_ROWS };
-static const char *const TC_NAME[TC_ROWS] = { "STEERING", "SENSITIVITY", "SLIDER PEDALS", "KEY LAYOUT" };
+static const char *const TC_NAME[TC_ROWS] = { "STEERING", "SENSITIVITY", "SLIDER PEDALS", "TOUCH LAYOUT" };
 #define TC_Y0 118.0f
 #define TC_DY 36.0f
 #define TC_X 250.0f
@@ -7446,6 +7461,7 @@ void menu_init(menu_state *m) {
   menu_garage_reset(m);
   m->gyro = 0, m->gyro_sens = 5, m->over_on = 1, m->milage_on = 1, m->black_lv = 0, m->net_ping = 1, m->net_log = 1, m->sharp_on = 0, m->ao_on = 0, m->bm_on = 1, m->readout_on = 0, m->fps_on = 0, m->phys_on = 0, m->filter_on = 1, m->filter_smooth = 10, m->filter_counter = 5, m->btn_steer = 10;
   for (int g = 0; g < 3; ++g) m->key_k[g] = 100, m->key_dx[g] = m->key_dy[g] = 0;
+  for (int e = 0; e < 7; ++e) m->el_k[e] = 100, m->el_dx[e] = m->el_dy[e] = 0;
   m->poem = -1;
   for (int i = 0; i < 6; ++i) m->vol[i] = 10; /* (the volume mixer, full, but the overall level at half) */
   m->vol[0] = 5;

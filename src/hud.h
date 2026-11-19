@@ -174,6 +174,19 @@ void hud_layout_clamp(int group, int gyro, float k, float *dx, float *dy);
 /* the editor's view: the race's keys as hud_layout_set has them, group sel (-1 none) outlined */
 void hud_draw_layout(float screen_w, float screen_h, int gyro, int sel);
 
+/* The race's own consoles the player can move and size on the touch screen (the KEY LAYOUT, with the keys): the dials (speedometer and tachometer), the plate under them (the speed in
+ * digits, the car's name), the gear shifter, the rank and the distance left (the times beside them), the time left, the course map, and the rivals' boxes of a versus. Each is scaled
+ * about its own middle by k (HUD_EL_K_MIN..HUD_EL_K_MAX) and moved by (dx, dy) layout px; a console left at 1, 0, 0 is exactly the default. The arcade style has none of this. */
+enum { HUD_EL_DIALS, HUD_EL_PLATE, HUD_EL_GEAR, HUD_EL_RANK, HUD_EL_TIME, HUD_EL_MAP, HUD_EL_RIVAL, HUD_ELEMENTS };
+#define HUD_EL_K_MIN 0.5f
+#define HUD_EL_K_MAX 2.0f
+void hud_el_set(int el, float k, float dx, float dy);
+const char *hud_el_name(int el);
+/* the console at (x, y) in layout px (the last one drawn first), -1 none */
+int hud_el_hit(float x, float y);
+/* (dx, dy) brought back so the console, k times its size, stays on the screen */
+void hud_el_clamp(int el, float k, float *dx, float *dy);
+
 /* The menus' left/right keys and back button, in the same style: which one is at (x, y)
  * (-1, +1, HUD_MENU_BACK, or 0), and drawing them (held = the one being pressed, or 0;
  * keys and back say which are on the screen). */
