@@ -1131,6 +1131,14 @@ static void read_rival(car_state *c) {
       read_tyres(c->rival_tyre[i], c->rival_tyre_rot[i]);
       c->rival_brake[i] = M8(P.disp + 0x144);
       c->rival_spot[i] = M8(P.disp + 0x146) == 1;
+      if (P.vs_race && i < P.vs_n) c->rival_spot[i] = !net_flash_of(P.vs[i].pcb); /* (a machine's own headlights as it sends them: the rival code shows them always) */
+      {
+        static int was[CAR_RIVALS];
+        if (was[i] != c->rival_spot[i]) {
+          was[i] = c->rival_spot[i];
+          NETLOG("versus flash: rival %d headlights %s\n", i, c->rival_spot[i] ? "on" : "off");
+        }
+      }
     }
   }
 }
@@ -1488,10 +1496,12 @@ void car_update(car_state *c, const car_input *in) {
   WF(P.gin + 4, in->throttle);
   WF(P.gin + 8, in->brake);
   W32(P.gin + 0x14, P.manual ? (uint32_t)P.lever : 0xffffffffu);
-  if (P.vs_race) W8(P.m + 0x3b5u, in->flash ? 1u : 0u); /* (the headlights' flash: clCarDisp's spot light and flares are on while this is 0, and the packet has it for the other machines) */
   /* the arcade frame: the traffic's AI and life, the car, what everything hit, the
    * checkpoints and the time, the sounds' cues */
   call(f_8983f64, 1, P.gin_ptr);
+  /* the headlights' flash: the machine's +0x3b5 (clCarDisp's spot light and flares are on while it is 0; the packet's byte 0x41 is its inverse) is cleared inside the arcade
+   * frame, so it is set after it, for the packet (lx_record) and the display (read_body) of this step */
+  if (P.vs_race) W8(P.m + 0x3b5u, in->flash ? 1u : 0u), net_set_flash(in->flash);
   if (P.vs_race) lx_record();
 
   float prev[3] = { c->pos[0], c->pos[1], c->pos[2] };

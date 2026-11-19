@@ -121,7 +121,7 @@ Test helpers: `tools/test/vs2.ps1` runs two players on one PC (host and client, 
 
 ## Ping on the HUD
 
-Every race packet carries its sender's round trip to the host after the car link packet (two bytes, ms; 0xffff not measured yet). The HUD shows it as P: n under each rival's ADVANTAGE, coloured green below 75 ms, yellow to 120, orange to 200, red above. Hosts and servers relay the packet whole; vs_host.c accepts the two extra bytes (a host from before them drops the packets of a newer client).
+Every race packet carries its sender's round trip to the host after the car link packet (two bytes, ms; 0xffff not measured yet), then a flags byte (bit 0: its headlights are flashing off); a rival's headlights show as its packets say, the arcade's rival code shows them always. The HUD shows it as P: n under each rival's ADVANTAGE, coloured green below 75 ms, yellow to 120, orange to 200, red above. Hosts and servers relay the packet whole; vs_host.c accepts the three extra bytes (a host from before them drops the packets of a newer client).
 
 ## Protocol versions
 

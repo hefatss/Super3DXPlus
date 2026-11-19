@@ -106,7 +106,7 @@ static int loopback_addr(const addr *x) { return ntohl(x->a.sin_addr.s_addr) >> 
 /* a player silent for this long may be taken over by a new address (a phone's Wi-Fi changing hands); before it, a packet in its name from
  * another address is thrown away: the ids are in every lobby packet, and without this anyone who sees one could take that player's place */
 #define TAKEOVER_AFTER 3.0
-#define RACE_PACKET_MAX (5 + CAR_LINK_PACKET + 2) /* race id, pcb and the car link packet, and the sender's round trip */
+#define RACE_PACKET_MAX (5 + CAR_LINK_PACKET + 3) /* race id, pcb and the car link packet, and the sender's round trip and flags */
 
 static void got(const unsigned char *b, int len, const addr *from, double now, const char *name) {
   if (len < 4 || b[0] != 'W' || b[1] != 'V' || b[2] != 1) return;

@@ -29,3 +29,5 @@ void vs_host_close(void) {}
 int vs_host_is_open(void) { return 0; }
 void vs_host_poll(double now, const char *name) { (void)now, (void)name; }
 int net_ping_ms(int pcb) { return (void)pcb, -1; }
+void net_set_flash(int off) { (void)off; }
+int net_flash_of(int pcb) { return (void)pcb, 0; }
