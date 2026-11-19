@@ -1047,6 +1047,8 @@ static int options_load(void) {
   if (n >= 3 && fscanf(f, " vsauto %d", &va) == 1) G.menu.vs.auto_ready = va != 0;
   int no[2] = { 1, 1 }; /* (PING ON THE HUD, DETAILED NET LOG, both on by default: after it) */
   if (n >= 3 && fscanf(f, " netopt %d %d", &no[0], &no[1]) == 2) G.menu.net_ping = no[0] != 0, G.menu.net_log = no[1] != 0;
+  int cs = 10; /* (the camera shake, after it) */
+  if (n >= 3 && fscanf(f, " camshake %d", &cs) == 1) G.menu.cam_shake = cs < 0 ? 0 : cs > 10 ? 10 : cs;
   fclose(f);
   if (n < 3) return 0;
   G.menu.hires = hires != 0;
@@ -1063,8 +1065,8 @@ static int options_load(void) {
 }
 
 static void options_save(void) {
-  static int last[50] = { -1 };
-  int now[50] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
+  static int last[51] = { -1 };
+  int now[51] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
                   G.menu.bm_on, G.menu.hd_tex, G.menu.bloom_on, G.menu.ssao_on, G.menu.wet_on, G.menu.paint_on,
                   G.menu.aa4, G.menu.hires };
   for (int g = 0; g < 3; ++g)
@@ -1081,6 +1083,7 @@ static void options_save(void) {
   now[46] = G.menu.black_lv;
   now[47] = G.menu.vs.auto_ready;
   now[48] = G.menu.net_ping, now[49] = G.menu.net_log;
+  now[50] = G.menu.cam_shake;
   if (G.options_global && !memcmp(now, last, sizeof now)) return;
   char path[1100];
   snprintf(path, sizeof path, "%s/option", G.save_dir);
@@ -1106,6 +1109,7 @@ static void options_save(void) {
   fprintf(f, "black %d\n", now[46]);
   fprintf(f, "vsauto %d\n", now[47]);
   fprintf(f, "netopt %d %d\n", now[48], now[49]);
+  fprintf(f, "camshake %d\n", now[50]);
   fclose(f);
   memcpy(last, now, sizeof last);
   G.options_global = 1;
@@ -5103,6 +5107,7 @@ void app_frame(float dt) {
   pend_up |= in.shift_up, pend_down |= in.shift_down;
   if (in.gear) pend_gear = in.gear;
   in.shift_up = pend_up, in.shift_down = pend_down, in.gear = pend_gear;
+  { static int ev = -2; if (ev == -2) ev = getenv("MT3DX_SHAKE") ? atoi(getenv("MT3DX_SHAKE")) : -1; car_shake(ev >= 0 ? ev : G.menu.cam_shake); } /* (MT3DX_SHAKE=n: this run's camera shake, whatever the option says) */
   if (G.flash_on && (!G.vs_race || (G.car.lamp_tick - G.flash_t0) / 6 >= 6)) G.flash_on = 0; /* (three blinks of 0.2 s: off 0.1 s, on 0.1 s) */
   in.flash = G.flash_on && !G.paused && ((G.car.lamp_tick - G.flash_t0) / 6) % 2 == 0;
   for (int i = 0; i < steps; ++i) {

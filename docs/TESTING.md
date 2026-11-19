@@ -12,6 +12,8 @@ Set as environment variables (they do nothing unset, and silence the sound unles
 | `MT3DX_SHOT=s,s` `MT3DX_SHOT_DIR=dir` | the frame as `shot_<s>.ppm` at those seconds |
 | `MT3DX_AUTOQUIT=s` | leave after s seconds |
 | `MT3DX_BLACK=n` | the PC player's BLACK LEVEL (0..10) for this run, whatever the option says |
+| `MT3DX_SHAKE=n` | the CAMERA SHAKE (0..10) for this run, whatever the option says |
+| `MT3DX_NOGL=1` | (Windows) skip the first window attempt to see the "no OpenGL ES" fallback and its message box |
 | `MT3DX_NOREADY=1` | a `MT3DX_VSAUTO=join` player does not click READY |
 | `MT3DX_CALLTEST=km` | show the "Remaining km" callout (3 or 5) at a race's start and again every 4 s |
 | `MT3DX_AUTODRIVE=1` `MT3DX_AUTODRIVE_KMH=n` | hold the accelerator in a race (below n km/h) |

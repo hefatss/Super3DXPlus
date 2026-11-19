@@ -7,6 +7,7 @@ What Super3DX+ adds or changes compared with [Re3DX+](NOTICE.md). Longer explana
 - Controller-first menus: full pad and keyboard control on every screen, with rebindable keys, pad buttons and analog axes
 - Controller input filtering, deadzone, response and button-steering speed tuning
 - Controller vibration (wall hits, expansion joints, tyre slip) with adjustable strength
+- CAMERA SHAKE (on the vibration screen): smooths out the view's shake at speed and over rough road, 0% to 100%
 - Steering wheel support (untested on hardware): wheel axes and buttons are bindable, and force feedback (steering pull, centering, damping, road effects) through SDL haptic, with a WHEEL list in KEY BINDINGS for the device and gains
 - Rebuilt main menu flow: PLAY / SETTINGS / EXIT, then car selection, then Solo / Versus / Car settings
 - Stock, Full Tune and Hell's Tuning starting points (Hell's Tuning begins the story on Ch. 101)

@@ -112,6 +112,7 @@ typedef struct {
   int ten_course, ten_level, ten_levels;
   int mip;      /* the textures' sharpness (HUD OPTIONS): 0 soft .. 3 sharpest (the mip bias 0, -1, -2, -3), 2 by default */
   int rum[4];   /* the controller vibration (MENU_RUMBLE), each in tenths 0..10: overall, wall hits, expansion joints, tyre slip */
+  int cam_shake; /* the camera shake in tenths 0..10 (MENU_RUMBLE, last row): 10 is the arcade's own, 0 a steady view */
   int rum_row;  /* the vibration screen's row */
   int disp_row; /* the display options screen's row (MENU_DISPLAY, PC) */
   int net_row, net_ping, net_log, net_act; /* the network options screen (MENU_NETWORK): its row, PING ON THE HUD, DETAILED NET LOG (both saved), and the action it asks of the platform */

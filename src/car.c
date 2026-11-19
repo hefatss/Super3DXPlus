@@ -905,12 +905,78 @@ static void read_body(car_state *c) {
  * (the camera sways with the car, CCamSway, so once per arcade frame), but in the
  * 10-in-a-row while a rival comes on (play state 1) CSeqCamTen's, which shows it arriving,
  * and once a story or 10-in-a-row race reaches its goal (state 8) CSeqCamGoal's. */
+/* CAMERA SHAKE below full: the camera's place and axes in the car's own frame (turned by its yaw, so a corner is not a shake) are smoothed over about a fifth of a second and
+ * blended with the arcade's own by the setting, which takes the shake of speed, rough road and kerbs out and keeps the camera's slower moves. Full leaves the view untouched. */
+static int shake_tenths = 10;
+static struct {
+  int on, view;
+  float off[3], ax[3][3]; /* the smoothed offset of the camera from the car, and its three axes (view matrix rows), in the car's frame */
+} SK;
+
+void car_shake(int tenths) { shake_tenths = tenths < 0 ? 0 : tenths > 10 ? 10 : tenths; }
+
+static void shake_rot(float s, float cs, const float in[3], float out[3]) { /* about the up axis: into the car's frame (s, cs of +yaw) */
+  out[0] = in[0] * cs - in[2] * s, out[1] = in[1], out[2] = in[0] * s + in[2] * cs;
+}
+
+static void shake_filter(car_state *c) {
+  if (shake_tenths >= 10) {
+    SK.on = 0;
+    return;
+  }
+  float V[16];
+  memcpy(V, c->cam_view, sizeof V);
+  const float sy = sinf(c->yaw), cy = cosf(c->yaw);
+  float cam[3] = { c->cam_pos[0] - c->pos[0], c->cam_pos[1] - c->pos[1], c->cam_pos[2] - c->pos[2] }, off[3], ax[3][3];
+  shake_rot(sy, cy, cam, off);
+  for (int r = 0; r < 3; ++r) {
+    const float w[3] = { V[r], V[4 + r], V[8 + r] };
+    shake_rot(sy, cy, w, ax[r]);
+  }
+  float d = 0, len = 1e-3f;
+  for (int k = 0; k < 3; ++k) d += (off[k] - SK.off[k]) * (off[k] - SK.off[k]), len += SK.off[k] * SK.off[k];
+  float fwd = ax[2][0] * SK.ax[2][0] + ax[2][1] * SK.ax[2][1] + ax[2][2] * SK.ax[2][2];
+  if (!SK.on || SK.view != P.view || d > 0.35f * 0.35f * len || fwd < 0.95f) { /* (a cut, a new view, the first frame: no smoothing across it) */
+    SK.on = 1, SK.view = P.view;
+    memcpy(SK.off, off, sizeof off), memcpy(SK.ax, ax, sizeof ax);
+    return;
+  }
+  const float a = 0.1f, s = shake_tenths / 10.0f; /* (a step is 1/60 s: 0.1 of the way is a time constant of about 0.16 s) */
+  float o[3], x[3][3];
+  for (int k = 0; k < 3; ++k) {
+    SK.off[k] += (off[k] - SK.off[k]) * a;
+    o[k] = SK.off[k] + (off[k] - SK.off[k]) * s;
+    for (int r = 0; r < 3; ++r) SK.ax[r][k] += (ax[r][k] - SK.ax[r][k]) * a, x[r][k] = SK.ax[r][k] + (ax[r][k] - SK.ax[r][k]) * s;
+  }
+  /* an orthonormal frame again: the view direction (axis 2) kept, the others made square to it */
+  float n2 = sqrtf(x[2][0] * x[2][0] + x[2][1] * x[2][1] + x[2][2] * x[2][2]);
+  if (n2 < 1e-4f) return;
+  for (int k = 0; k < 3; ++k) x[2][k] /= n2;
+  float dp = x[0][0] * x[2][0] + x[0][1] * x[2][1] + x[0][2] * x[2][2];
+  for (int k = 0; k < 3; ++k) x[0][k] -= dp * x[2][k];
+  float n0 = sqrtf(x[0][0] * x[0][0] + x[0][1] * x[0][1] + x[0][2] * x[0][2]);
+  if (n0 < 1e-4f) return;
+  for (int k = 0; k < 3; ++k) x[0][k] /= n0;
+  x[1][0] = x[2][1] * x[0][2] - x[2][2] * x[0][1];
+  x[1][1] = x[2][2] * x[0][0] - x[2][0] * x[0][2];
+  x[1][2] = x[2][0] * x[0][1] - x[2][1] * x[0][0];
+  /* back to the world: the inverse turn */
+  float p[3], R[3][3];
+  shake_rot(-sy, cy, o, p);
+  for (int r = 0; r < 3; ++r) shake_rot(-sy, cy, x[r], R[r]);
+  for (int r = 0; r < 3; ++r) V[r] = R[r][0], V[4 + r] = R[r][1], V[8 + r] = R[r][2];
+  for (int k = 0; k < 3; ++k) c->cam_pos[k] = c->pos[k] + p[k];
+  for (int r = 0; r < 3; ++r) V[12 + r] = -(R[r][0] * c->cam_pos[0] + R[r][1] * c->cam_pos[1] + R[r][2] * c->cam_pos[2]);
+  memcpy(c->cam_view, V, sizeof V);
+}
+
 static void read_camera(car_state *c) {
   W32(PLAY_VIEW, (uint32_t)P.view);
   call(f_8982338, 1, P.cam);
   memcpy(c->cam_view, VA(P.cam), sizeof c->cam_view);
   const float *V = c->cam_view;
   for (int j = 0; j < 3; j++) c->cam_pos[j] = -(V[12] * V[4 * j] + V[13] * V[4 * j + 1] + V[14] * V[4 * j + 2]);
+  shake_filter(c);
   c->cam_fov = MF(P.cam + 0x40);
   c->cam_near = MF(P.cam + 0x44);
   c->cam_blur = fminf(1.0f, fmaxf(0.0f, MF(P.cam + 0x48)));
