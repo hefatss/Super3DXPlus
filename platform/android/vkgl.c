@@ -923,7 +923,9 @@ static vimg *tex_image_for(vtex *t, int level, int layers, VkFormat fmt, VkCompo
    * again with the same size keeps the rest too) */
   if (im && im->fmt == fmt && im->layers == layers && im->w == bw && im->h == bh) {
     VkCommandBuffer c = up_cmd(cur_up());
-    uint32_t keep = im->level_mask & ~(1u << level);
+    /* (a cube's faces share each level: when a later face makes a new image, the faces already given go along: copying the level as a whole,
+     * the one being given is then written over. Dropping the level lost them, and the cube showed the image's untouched memory) */
+    uint32_t keep = layers == 6 ? im->level_mask : im->level_mask & ~(1u << level);
     for (int l = 0; l < im->levels && l < levels; ++l) {
       if (!(keep >> l & 1)) continue;
       barrier(c, im, l, 1, 0, layers, im->rest, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -1005,7 +1007,24 @@ static void tex_spec(GLenum target, GLint level, const tfmt *f, int w, int h, co
     set_err(GL_OUT_OF_MEMORY);
     return;
   }
-  if (data) image_upload(im, level, face, w, h, f, data, raw, ctx()->unpack);
+  /* a cube face of another size than the cube's (Nagoya's first reflection cube has one 128 face among 64s, the arcade's own data; GL calls such a cube
+   * incomplete): Vulkan's image has the first face's size, and the bigger copy went past it, the cube read as static on the road. The face is taken
+   * to the cube's size by its nearest pixels. */
+  void *fit = NULL;
+  int unpack = ctx()->unpack;
+  if (data && layers == 6 && face && (w != im->w || h != im->h) && f->conv != CONV_RAW && f->src_bpp > 0) {
+    size_t bpp = (size_t)f->src_bpp, pitch = ((size_t)w * bpp + (size_t)unpack - 1) / (size_t)unpack * (size_t)unpack;
+    fit = malloc((size_t)im->w * (size_t)im->h * bpp);
+    if (fit) {
+      for (int y = 0; y < im->h; ++y)
+        for (int x = 0; x < im->w; ++x)
+          memcpy((uint8_t *)fit + ((size_t)y * (size_t)im->w + (size_t)x) * bpp,
+                 (const uint8_t *)data + (size_t)((long long)y * h / im->h) * pitch + (size_t)((long long)x * w / im->w) * bpp, bpp);
+      data = fit, w = im->w, h = im->h, unpack = 1;
+    }
+  }
+  if (data) image_upload(im, level, face, w, h, f, data, raw, unpack);
+  free(fit);
   im->level_mask |= 1u << level;
   tex_view(im);
 }
