@@ -26,7 +26,12 @@ PY = sys.executable
 
 
 def sh(*cmd, env=None, cwd=ROOT, stdout=None, check=True):
-    return subprocess.run([str(c) for c in cmd], cwd=cwd, env=env, stdout=stdout, check=check)
+    try:
+        return subprocess.run([str(c) for c in cmd], cwd=cwd, env=env, stdout=stdout, check=check)
+    except FileNotFoundError as e:  # (Windows' bare "[WinError 2]" does not say what was not found)
+        what = "the program " + str(cmd[0]) if not os.path.isfile(str(cmd[0])) and not shutil.which(str(cmd[0])) else "the folder " + str(cwd) if not os.path.isdir(str(cwd)) else str(e)
+        sys.exit("could not start a program: %s was not found (%s)."
+                 "\nIf it is ffmpeg, install it (Windows: winget install Gyan.FFmpeg) or set FFMPEG to its full path, then run setup again." % (what, e))
 
 
 # ---------------------------------------------------------------------------------------------- the dump's view
@@ -201,6 +206,8 @@ def gen(arcade, phys):
 # ------------------------------------------------------------------------------------------------------- convert
 def ffmpeg_exe():
     exe = os.environ.get("FFMPEG") or shutil.which("ffmpeg")
+    if exe and not os.path.isfile(exe) and not shutil.which(exe):
+        sys.exit("FFMPEG names %s, which does not exist. Unset it, or point it at ffmpeg.exe itself (not its folder)." % exe)
     if not exe:
         sys.exit("no ffmpeg: install one with the Bink decoder (a full build, e.g. gyan.dev's on Windows) and put it on PATH, or set FFMPEG")
     return exe
