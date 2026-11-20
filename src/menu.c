@@ -2099,7 +2099,7 @@ enum { LAY_SMALLER, LAY_BIGGER, LAY_RESET, LAY_DONE, LAY_BUTTONS };
 static const float LAY_PANEL[4] = { 272, 228, 480, 270 };
 static const float LAY_BUTTON[LAY_BUTTONS][4] = { { 296, 356, 110, 56 }, { 618, 356, 110, 56 }, { 296, 426, 204, 56 },
                                                   { 524, 426, 204, 56 } };
-static const char *const LAY_GROUP[3] = { "TOP KEYS", "LEFT KEYS", "RIGHT KEYS" };
+static const char *const LAY_GROUP[HUD_KEY_GROUPS] = { "TOP KEYS", "LEFT KEYS", "PEDALS", "SHIFT UP", "SHIFT DOWN" };
 #define LAY_K_STEP 10
 /* what the editor moves: the three key groups, then the consoles (hud.h HUD_EL_*), the chosen one lay_sel */
 #define LAY_ITEMS (HUD_KEY_GROUPS + HUD_ELEMENTS)
@@ -7460,7 +7460,7 @@ void menu_init(menu_state *m) {
   m->zones = 1;
   menu_garage_reset(m);
   m->gyro = 0, m->gyro_sens = 5, m->over_on = 1, m->milage_on = 1, m->black_lv = 0, m->net_ping = 1, m->net_log = 1, m->sharp_on = 0, m->ao_on = 0, m->bm_on = 1, m->readout_on = 0, m->fps_on = 0, m->phys_on = 0, m->filter_on = 1, m->filter_smooth = 10, m->filter_counter = 5, m->btn_steer = 10;
-  for (int g = 0; g < 3; ++g) m->key_k[g] = 100, m->key_dx[g] = m->key_dy[g] = 0;
+  for (int g = 0; g < HUD_KEY_GROUPS; ++g) m->key_k[g] = 100, m->key_dx[g] = m->key_dy[g] = 0;
   for (int e = 0; e < 7; ++e) m->el_k[e] = 100, m->el_dx[e] = m->el_dy[e] = 0;
   m->poem = -1;
   for (int i = 0; i < 6; ++i) m->vol[i] = 10; /* (the volume mixer, full, but the overall level at half) */

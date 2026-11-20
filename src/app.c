@@ -1058,6 +1058,15 @@ static int options_load(void) {
       G.menu.el_dx[e] = hl[e * 3 + 1] < -2000 || hl[e * 3 + 1] > 2000 ? 0 : hl[e * 3 + 1];
       G.menu.el_dy[e] = hl[e * 3 + 2] < -2000 || hl[e * 3 + 2] > 2000 ? 0 : hl[e * 3 + 2];
     }
+  int k2[6]; /* (the shift up and down keys' layout, after it: size percent, then move x and y, of each; a file from before has them moving with the pedals, as they did) */
+  int have_k2 = n >= 3 && fscanf(f, " keys2 %d %d %d %d %d %d", &k2[0], &k2[1], &k2[2], &k2[3], &k2[4], &k2[5]) == 6;
+  for (int g = 3; g < HUD_KEY_GROUPS; ++g) {
+    int k = have_k2 ? k2[(g - 3) * 3] : G.menu.key_k[HUD_KEYS_RIGHT];
+    int dx = have_k2 ? k2[(g - 3) * 3 + 1] : G.menu.key_dx[HUD_KEYS_RIGHT], dy = have_k2 ? k2[(g - 3) * 3 + 2] : G.menu.key_dy[HUD_KEYS_RIGHT];
+    G.menu.key_k[g] = k < 60 ? 60 : k > 160 ? 160 : k;
+    G.menu.key_dx[g] = dx < -2000 || dx > 2000 ? 0 : dx;
+    G.menu.key_dy[g] = dy < -2000 || dy > 2000 ? 0 : dy;
+  }
   fclose(f);
   if (n < 3) return 0;
   G.menu.hires = hires != 0;
@@ -1074,8 +1083,8 @@ static int options_load(void) {
 }
 
 static void options_save(void) {
-  static int last[72] = { -1 };
-  int now[72] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
+  static int last[80] = { -1 };
+  int now[80] = { G.menu.gyro, G.menu.gyro_sens, G.menu.over_on, G.menu.sharp_on, G.menu.pedal_slide, G.menu.ao_on,
                   G.menu.bm_on, G.menu.hd_tex, G.menu.bloom_on, G.menu.ssao_on, G.menu.wet_on, G.menu.paint_on,
                   G.menu.aa4, G.menu.hires };
   for (int g = 0; g < 3; ++g)
@@ -1094,6 +1103,8 @@ static void options_save(void) {
   now[48] = G.menu.net_ping, now[49] = G.menu.net_log;
   now[50] = G.menu.cam_shake;
   for (int e = 0; e < 7; ++e) now[51 + e * 3] = G.menu.el_k[e], now[52 + e * 3] = G.menu.el_dx[e], now[53 + e * 3] = G.menu.el_dy[e];
+  for (int g = 3; g < HUD_KEY_GROUPS; ++g) /* (the shift keys' own, after them) */
+    now[72 + (g - 3) * 3] = G.menu.key_k[g], now[73 + (g - 3) * 3] = G.menu.key_dx[g], now[74 + (g - 3) * 3] = G.menu.key_dy[g];
   if (G.options_global && !memcmp(now, last, sizeof now)) return;
   char path[1100];
   snprintf(path, sizeof path, "%s/option", G.save_dir);
@@ -1122,6 +1133,9 @@ static void options_save(void) {
   fprintf(f, "camshake %d\n", now[50]);
   fprintf(f, "hudel");
   for (int i = 51; i < 72; ++i) fprintf(f, " %d", now[i]);
+  fprintf(f, "\n");
+  fprintf(f, "keys2");
+  for (int i = 72; i < 78; ++i) fprintf(f, " %d", now[i]);
   fprintf(f, "\n");
   fclose(f);
   memcpy(last, now, sizeof last);

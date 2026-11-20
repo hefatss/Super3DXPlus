@@ -62,12 +62,13 @@ static const rect MENU_HIDDEN = { 568, 652, 392, 56 }; /* the bottom bar's third
  * screen's sides and grow by KEY_K about their corner there (a phone's are small). */
 static float EDGE, KEY_K = 1;
 static int STYLE; /* HUD_STYLE_TOUCH (0) or HUD_STYLE_ARCADE (hud_set_style) */
-enum { KEY_TOP, KEY_LEFT, KEY_RIGHT }; /* (hud.h's HUD_KEYS_*) */
-/* the player's own layout (hud_layout_set): each side's keys scaled about their corner, moved */
-static float USER_K[3] = { 1, 1, 1 }, USER_DX[3], USER_DY[3];
+enum { KEY_TOP, KEY_LEFT, KEY_RIGHT, KEY_SHIFT_UP, KEY_SHIFT_DOWN }; /* (hud.h's HUD_KEYS_*: the shift keys hang from the right corner) */
+/* the player's own layout (hud_layout_set): each group of keys scaled about its corner, moved */
+static float USER_K[HUD_KEY_GROUPS] = { 1, 1, 1, 1, 1 }, USER_DX[HUD_KEY_GROUPS], USER_DY[HUD_KEY_GROUPS];
 
-/* a rect of a side's keys on screen, the side k times its size and moved (dx, dy) */
+/* a rect of a group's keys on screen, the group k times its size and moved (dx, dy) */
 static rect place(rect r, int side, float k, float dx, float dy) {
+  if (side == KEY_SHIFT_UP || side == KEY_SHIFT_DOWN) side = KEY_RIGHT;
   float ox = side == KEY_LEFT ? 0 : side == KEY_RIGHT ? 1024 : 512, oy = side == KEY_TOP ? 0 : 768;
   float ex = side == KEY_LEFT ? -EDGE : side == KEY_RIGHT ? EDGE : 0;
   k *= KEY_K;
@@ -186,7 +187,7 @@ void hud_touch(hud_state *h, void *id, int phase, float x, float y) {
   if (h->tune_open && phase == TOUCH_BEGAN && tune_click(h, x, y)) return; /* (the steering filter's panel takes its clicks) */
   if (STYLE == HUD_STYLE_ARCADE) return; /* (no touch keys on the arcade's screen) */
   rect brake = h->gyro ? key(G_BRAKE, KEY_LEFT) : key(BRAKE, KEY_RIGHT);
-  rect up = key(h->gyro ? G_SHIFT_UP : SHIFT_UP, KEY_RIGHT), down = key(h->gyro ? G_SHIFT_DOWN : SHIFT_DOWN, KEY_RIGHT);
+  rect up = key(h->gyro ? G_SHIFT_UP : SHIFT_UP, KEY_SHIFT_UP), down = key(h->gyro ? G_SHIFT_DOWN : SHIFT_DOWN, KEY_SHIFT_DOWN);
   rect throttle = key(THROTTLE, KEY_RIGHT), left = key(LEFT, KEY_LEFT), right = key(RIGHT, KEY_LEFT);
   if (phase == TOUCH_BEGAN && keys_pause_only()) {
     if (inside(key(PAUSE, KEY_TOP), x, y)) h->pause_pressed++;
@@ -2607,11 +2608,16 @@ static void draw_keys(const hud_state *h, float steer, int all_keys) {
       if (!h->gyro) pedal_bar(brake, h->brake_touch ? h->brake_v : 0);
     }
 
-    /* shift up / down */
+    /* shift up / down (each key's own projection: the player places and sizes them apart) */
+    side_proj = key_ortho(h->screen_w, h->screen_h, KEY_SHIFT_UP);
+    glUniformMatrix4fv(u_proj, 1, GL_FALSE, side_proj.m);
     button(up, 0);
-    button(down, 0);
     color(1, 1, 1, 0.92f);
     chevron(up.x + up.w / 2, up.y + up.h / 2 - 4, 22, 0, -1);
+    side_proj = key_ortho(h->screen_w, h->screen_h, KEY_SHIFT_DOWN);
+    glUniformMatrix4fv(u_proj, 1, GL_FALSE, side_proj.m);
+    button(down, 0);
+    color(1, 1, 1, 0.92f);
     chevron(down.x + down.w / 2, down.y + down.h / 2 + 4, 22, 0, 1);
   }
 
@@ -3250,8 +3256,10 @@ void hud_lift(float dy, float left) {
 /* a group's keys' box in the layout before key() (the steer bar over the left side's) */
 static rect group_rect(int group, int gyro) {
   if (group == KEY_LEFT) return (rect){ LEFT.x, LEFT.y - 14, RIGHT.x + RIGHT.w - LEFT.x, LEFT.h + 14 };
-  if (group == KEY_RIGHT) {
-    float x = gyro ? G_SHIFT_UP.x : SHIFT_UP.x;
+  if (group == KEY_SHIFT_UP) return gyro ? G_SHIFT_UP : SHIFT_UP;
+  if (group == KEY_SHIFT_DOWN) return gyro ? G_SHIFT_DOWN : SHIFT_DOWN;
+  if (group == KEY_RIGHT) { /* (the pedals: the gyro's brake is on the left) */
+    float x = gyro ? THROTTLE.x : BRAKE.x;
     return (rect){ x, THROTTLE.y, THROTTLE.x + THROTTLE.w - x, BRAKE.y + BRAKE.h - THROTTLE.y };
   }
   return (rect){ CAMERA.x, CAMERA.y, PAUSE.x + PAUSE.w - CAMERA.x, CAMERA.h };
@@ -3264,7 +3272,7 @@ void hud_layout_set(int group, float k, float dx, float dy) {
 }
 
 int hud_layout_hit(int gyro, float x, float y) {
-  for (int g = 0; g < HUD_KEY_GROUPS; ++g) {
+  for (int g = HUD_KEY_GROUPS - 1; g >= 0; --g) { /* (the small shift keys before the pedals' box beside them) */
     rect r = key(group_rect(g, gyro), g);
     if (x >= r.x - 10 && x <= r.x + r.w + 10 && y >= r.y - 10 && y <= r.y + r.h + 10) return g;
   }

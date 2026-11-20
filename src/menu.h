@@ -247,7 +247,7 @@ typedef struct {
    * (hud.h HUD_KEYS_*) their size (percent, 60..160) and move (layout px), kept with the
    * options; the editor's chosen group, the finger dragging it (lay_drag) from where (lay_x, y
    * less the group's move), and a button of its panel tapped (lay_tap, 1 + LAY_*) */
-  int key_k[3], key_dx[3], key_dy[3];
+  int key_k[5], key_dx[5], key_dy[5]; /* (HUD_KEY_GROUPS) */
   /* and the consoles' (hud.h HUD_EL_*, 7 of them): size percent (50..200) and move; lay_sel counts the key groups first (0..2), then these (3..9) */
   int el_k[7], el_dx[7], el_dy[7];
   int lay_sel, lay_drag, lay_tap;

@@ -9,6 +9,7 @@ What Super3DX+ adds or changes compared with [Re3DX+](NOTICE.md). Longer explana
 - Controller vibration (wall hits, expansion joints, tyre slip) with adjustable strength
 - TOUCH LAYOUT (the touch controls' screen, formerly KEY LAYOUT, issue 18): besides the three groups of touch keys, the race's gauges can be dragged and resized: the dials, the speed plate, the gear shifter, the rank and distance, the time left, the map and the rival info (50% to 200%, about their own middle; a console left alone stays exactly where it was). The arcade-style HUD is untouched.
 - CAMERA SHAKE (in the game settings): smooths out the view's shake at speed and over rough road, 0% to 100%
+- TOUCH LAYOUT: the shift up and shift down keys are now groups of their own, sized and placed apart from the pedals and from each other (a layout saved before keeps them where they were)
 - Android: coloured static on some road stretches (Nagoya's first reflection cube has one face of another size, which Vulkan read past its edge; issue 24)
 - NETWORK OPTIONS shows how the last host or join attempt went (no answer, version mismatch, host closed...) instead of "not connected"; the same line goes to the log
 - Windows: the game asks laptops with two graphics cards to use the fast one (NVIDIA Optimus and AMD switchable graphics; Windows' Graphics settings can still override it)

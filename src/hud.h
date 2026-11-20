@@ -163,7 +163,8 @@ void hud_draw(const hud_state *h, const car_state *car, const car_input *in, flo
  * race's keys in three groups, the top row (pause, reset, view, AT/MT), the left side (steer, or
  * the gyro's brake) and the right side (pedals, shift), each scaled about its screen corner by k
  * (HUD_KEY_K_MIN..HUD_KEY_K_MAX, 1 the default) and moved by (dx, dy) layout px */
-enum { HUD_KEYS_TOP, HUD_KEYS_LEFT, HUD_KEYS_RIGHT, HUD_KEY_GROUPS };
+/* (the right side's shift up and down keys are groups of their own, scaled and moved apart from the pedals, and from each other: they hang from the right corner too) */
+enum { HUD_KEYS_TOP, HUD_KEYS_LEFT, HUD_KEYS_RIGHT, HUD_KEYS_SHIFT_UP, HUD_KEYS_SHIFT_DOWN, HUD_KEY_GROUPS };
 #define HUD_KEY_K_MIN 0.6f
 #define HUD_KEY_K_MAX 1.6f
 void hud_layout_set(int group, float k, float dx, float dy);
