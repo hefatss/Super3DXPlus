@@ -179,6 +179,7 @@ def gen(arcade, phys):
     run("tools/steff.py", main)
     run("tools/storycut.py", view)
     run("tools/storybgm.py", main)
+    run("tools/storynight.py", main)
     # (namedb.py and tendb.py import menupack.py, which reads the story headers above)
     run("tools/tendb.py", main, os.path.join(d, "carconfig", "ytConfigTenFight.txt"))
     run("tools/namedb.py", main)

@@ -30,6 +30,7 @@
 #include "rivaldb.h"
 #include "tendb.h"
 #include "storycity.h"
+#include "storynight.h"
 #include "storymovie.h"
 #include "storyinfo.h"
 #include "gl.h"
@@ -4272,6 +4273,9 @@ static void menu_frame(float dt, double frame_start) {
     if (G.menu.screen == MENU_PRE && G.menu.ending == 2) city = STORYCITY[ENDING_SERIES];
     else if (G.menu.screen == MENU_PRE && r >= 0 && RIVALDB[r].series >= 0 && RIVALDB[r].series < STORYCITY_N)
       city = STORYCITY[RIVALDB[r].series];
+    /* and its time zone: each story select has its own (STORYNIGHT: chapter 101 morning, 102 night, 103 and 104 morning, 105 night ...), not the last one chosen */
+    if (G.menu.screen == MENU_PRE && G.menu.ending != 2 && r >= 0 && RIVALDB[r].select >= 0 && RIVALDB[r].select < 112 && G.menu.zones > 1)
+      G.menu.zone = STORYNIGHT[RIVALDB[r].select];
   } else if (G.menu.game == MENU_GAME_TEN) {
     if (G.menu.screen == MENU_PRE) city = TEN_CITY[menu_ten_course(&G.menu)];
   } else if (G.menu.screen == MENU_BGM || G.menu.screen == MENU_PRE) /* decided, not while browsing */
@@ -4507,7 +4511,7 @@ static void menu_frame(float dt, double frame_start) {
       G.rp.wet = G.console && z && G.menu.wet_on ? 0.75f : 0.0f; /* (a night's road shines with its lights) */
       char path[1200];
       snprintf(path, sizeof path, "%s/timezone", G.save_dir);
-      FILE *tz = fopen(path, "w");
+      FILE *tz = G.menu.game == MENU_GAME_STORY ? NULL : fopen(path, "w"); /* (a story's own zone is not the player's choice: the next start keeps the last one chosen) */
       if (tz) {
         fputc('0' + z, tz);
         fclose(tz);
