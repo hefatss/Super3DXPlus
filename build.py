@@ -80,7 +80,12 @@ def ensure_modules():
     venv = os.path.join(TOOLS, "venv")
     if subprocess.run([sys.executable, "-m", "venv", venv]).returncode:
         die("could not make a virtual environment. On Debian/Ubuntu run: sudo apt install python3-venv python3-pip")
-    py = os.path.join(venv, "Scripts" if os.name == "nt" else "bin", "python" + (".exe" if os.name == "nt" else ""))
+    # (the python.org Python's venv has Scripts\python.exe; MSYS2's, on Windows too, has bin/python.exe or bin/python3: take whichever is there)
+    cands = [os.path.join(venv, d, n) for d in ("Scripts", "bin") for n in ("python.exe", "python3.exe", "python", "python3")]
+    py = next((c for c in cands if os.path.isfile(c)), None)
+    if not py:
+        die("the virtual environment was made but has no Python in it (looked in %s). Install Python from python.org and run setup again, "
+            "or run: %s -m pip install --break-system-packages -r %s" % (venv, sys.executable, req))
     if subprocess.run([py, "-m", "pip", "install", "-r", req]).returncode:
         die("could not install the Python packages (pip failed, see above)")
     sys.exit(subprocess.run([py] + sys.argv).returncode)  # carry on inside it

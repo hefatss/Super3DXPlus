@@ -3557,18 +3557,18 @@ static void net_info_fill(menu_state *m) {
   char shown[24]; /* (this screen is shown and copied for bug reports: a public address is hidden, and the room code is not here at all) */
   log_mask_ip(ip, shown);
   snprintf(m->net_lines[1], sizeof m->net_lines[1], "YOUR ADDRESS: %s", ip[0] ? shown : "UNKNOWN");
-  if (m->vs.hosting) snprintf(m->net_lines[2], sizeof m->net_lines[2], "%s", m->vs.invite[0] ? "HOSTING ONLINE" : "HOSTING ON THE LAN");
-  else snprintf(m->net_lines[2], sizeof m->net_lines[2], "NOT HOSTING");
+  int k = 2; /* (the lines after these two are packed: a line with nothing to say is left out, not shown as "not hosting") */
+  if (m->vs.hosting) snprintf(m->net_lines[k++], sizeof m->net_lines[0], "%s ON UDP PORT %d", m->vs.invite[0] ? "HOSTING ONLINE" : "HOSTING ON THE LAN", vs_host_port());
   if (net_is_open() && l->connected) {
     double rtt = net_rtt_ms();
-    if (rtt >= 0) snprintf(m->net_lines[3], sizeof m->net_lines[3], "CONNECTED WITH %d PLAYERS. PING TO HOST: %.0f MS", l->n, rtt);
-    else snprintf(m->net_lines[3], sizeof m->net_lines[3], "CONNECTED WITH %d PLAYERS. PING NOT MEASURED YET", l->n);
+    if (rtt >= 0) snprintf(m->net_lines[k++], sizeof m->net_lines[0], "CONNECTED WITH %d PLAYERS. PING TO HOST: %.0f MS", l->n, rtt);
+    else snprintf(m->net_lines[k++], sizeof m->net_lines[0], "CONNECTED WITH %d PLAYERS. PING NOT MEASURED YET", l->n);
   } else {
-    if (vs_last[0]) snprintf(m->net_lines[3], sizeof m->net_lines[3], "LAST ATTEMPT: %s", vs_last);
-    else snprintf(m->net_lines[3], sizeof m->net_lines[3], "NO HOST OR JOIN ATTEMPT YET");
+    if (vs_last[0]) snprintf(m->net_lines[k++], sizeof m->net_lines[0], "LAST ATTEMPT: %s", vs_last);
+    else snprintf(m->net_lines[k++], sizeof m->net_lines[0], "NO HOST OR JOIN ATTEMPT YET");
   }
-  snprintf(m->net_lines[4], sizeof m->net_lines[4], "%s", stats);
-  m->net_lines[5][0] = 0; /* (the router's note can name an address: not here) */
+  snprintf(m->net_lines[k++], sizeof m->net_lines[0], "%s", stats);
+  while (k < 6) m->net_lines[k++][0] = 0; /* (the router's note can name an address: not here) */
 }
 
 const char *app_net_diag(void) {
