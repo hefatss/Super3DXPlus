@@ -295,10 +295,18 @@ def copy_runtime(ctx):
     for sub in ("cutin", "carconfig", "rtmovie"):
         os.makedirs(os.path.join(data, sub), exist_ok=True)
     src = os.path.join(ctx.real, "data")
+    if os.path.normcase(os.path.realpath(src)) == os.path.normcase(os.path.realpath(data)):
+        return  # the dump already sits in the game folder (the files are where they need to be); copying onto itself fails on Windows
+
+    def same(a, b):
+        return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
+
     shutil.copytree(os.path.join(src, "cutin"), os.path.join(data, "cutin"), dirs_exist_ok=True)
     for f in os.listdir(os.path.join(src, "carconfig")):
         if f.startswith("ytConfig") and f.endswith(".txt"):
-            shutil.copyfile(os.path.join(src, "carconfig", f), os.path.join(data, "carconfig", f))
+            a, b = os.path.join(src, "carconfig", f), os.path.join(data, "carconfig", f)
+            if not same(a, b):
+                shutil.copyfile(a, b)
     for sub in ("table", "trail"):
         shutil.copytree(os.path.join(src, "rtmovie", sub), os.path.join(data, "rtmovie", sub), dirs_exist_ok=True)
 
