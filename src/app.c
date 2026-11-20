@@ -3539,6 +3539,15 @@ static void vs_ip_save(void) {
 
 /* The NETWORK OPTIONS screen's connection lines (menu.h net_lines) and the diagnostics text for the clipboard: the versus version, this machine's address, the
  * hosting state, the connection and its ping, the last race's lost and late packets. */
+/* How the last host / join attempt went (NETWORK OPTIONS shows it: that screen is only reachable outside a game, so "not connected" alone told nothing).
+ * Written as the versus code learns it; a change goes to the log too. */
+static char vs_last[56];
+static void vs_last_set(const char *why) {
+  if (!strcmp(vs_last, why)) return;
+  snprintf(vs_last, sizeof vs_last, "%s", why);
+  fprintf(stderr, "versus: last attempt: %s\n", vs_last);
+}
+
 static void net_info_fill(menu_state *m) {
   const net_lobby *l = net_lobby_now();
   char ip[16] = "", stats[96];
@@ -3555,7 +3564,8 @@ static void net_info_fill(menu_state *m) {
     if (rtt >= 0) snprintf(m->net_lines[3], sizeof m->net_lines[3], "CONNECTED WITH %d PLAYERS. PING TO HOST: %.0f MS", l->n, rtt);
     else snprintf(m->net_lines[3], sizeof m->net_lines[3], "CONNECTED WITH %d PLAYERS. PING NOT MEASURED YET", l->n);
   } else {
-    snprintf(m->net_lines[3], sizeof m->net_lines[3], "NOT CONNECTED");
+    if (vs_last[0]) snprintf(m->net_lines[3], sizeof m->net_lines[3], "LAST ATTEMPT: %s", vs_last);
+    else snprintf(m->net_lines[3], sizeof m->net_lines[3], "NO HOST OR JOIN ATTEMPT YET");
   }
   snprintf(m->net_lines[4], sizeof m->net_lines[4], "%s", stats);
   m->net_lines[5][0] = 0; /* (the router's note can name an address: not here) */
@@ -3595,6 +3605,7 @@ static void vs_host_start(int online) {
   if (vs_host_open(G.vs_id, online) != 0 || net_open("127.0.0.1", vs_host_port(), G.vs_id) != 0) {
     vs_off();
     snprintf(G.menu.vs.note, sizeof G.menu.vs.note, "COULD NOT HOST: NO FREE PORT (FIREWALL?)");
+    vs_last_set("COULD NOT HOST: NO FREE PORT");
     return;
   }
   G.menu.vs.hosting = 1;
@@ -3807,6 +3818,7 @@ static void vs_menu(void) {
         fprintf(stderr, "versus: connecting to %s:%d as %08x\n", shown, tport, G.vs_id);
       } else {
         snprintf(m->vs.note, sizeof m->vs.note, "NOT AN ADDRESS OR ROOM CODE");
+        vs_last_set("NOT AN ADDRESS OR ROOM CODE");
       }
     }
   }
@@ -3853,12 +3865,12 @@ static void vs_menu(void) {
     vs_off();
     m->vs.state = MENU_VS_OFF, m->vs.n = 0;
     snprintf(m->vs.note, sizeof m->vs.note, "THE HOST CLOSED THE GAME");
+    vs_last_set("THE HOST CLOSED THE GAME");
     return;
   }
   const net_lobby *l = net_lobby_now();
   if (l->connected) {
-    if (m->vs.state == MENU_VS_CONNECTING) m->vs.state = MENU_VS_LOBBY, m->vs.ready = m->vs.auto_ready;
-    m->vs.n = l->n < MENU_VS_PLAYERS ? l->n : MENU_VS_PLAYERS;
+    if (m->vs.state == MENU_VS_CONNECTING) m->vs.state = MENU_VS_LOBBY, m->vs.ready = m->vs.auto_ready;    m->vs.n = l->n < MENU_VS_PLAYERS ? l->n : MENU_VS_PLAYERS;
     m->vs.me = l->me;
     m->vs.host = l->host;
     m->vs.picker = vs_picker(l);
@@ -3878,6 +3890,7 @@ static void vs_menu(void) {
         int theirs = pl->profile_len >= VS_PROFILE && pl->profile[VS_PROFILE_BUILD] == 'W' ? pl->profile[VS_PROFILE_BUILD + 1] : 0;
         snprintf(why, sizeof why, "VERSION MISMATCH (THEIRS %d, YOURS %d). PLEASE UPDATE", theirs, VS_BUILD);
         vs_ascii(m->vs.car[i], sizeof m->vs.car[i], why);
+        { char lw[56]; snprintf(lw, sizeof lw, "VERSION MISMATCH (THEIRS %d, YOURS %d)", theirs, VS_BUILD); vs_last_set(lw); }
         static int said[NET_PLAYERS];
         if (i < NET_PLAYERS && said[i] != theirs + 1) said[i] = theirs + 1, fprintf(stderr, "versus: player %d is on protocol %d, this build is on %d: no race together\n", i, theirs, VS_BUILD);
       }
@@ -3899,6 +3912,7 @@ static void vs_menu(void) {
     vs_area(m, l, now);
     vs_day(m, l, now);
     vs_tune(m, l, now);
+    { int bad = 0; for (int i = 0; i < m->vs.n; ++i) bad |= m->vs.mismatch[i]; if (!bad) vs_last_set("CONNECTED"); }
   }
   double silent = l->connected ? net_silence(now) : now - G.vs_asked;
   /* a host gone without a word (its app closed, its device asleep): back to the search, where
@@ -3908,11 +3922,15 @@ static void vs_menu(void) {
     vs_off();
     m->vs.state = MENU_VS_OFF, m->vs.n = 0;
     snprintf(m->vs.note, sizeof m->vs.note, "THE HOST LOST CONNECTION");
+    vs_last_set("THE HOST LOST CONNECTION");
     return;
   }
   const char *quiet = m->vs.kind == MENU_VS_NET ? "SERVER UNRESPONSIVE" : "HOST UNRESPONSIVE";
-  if (m->vs.state == MENU_VS_CONNECTING)
+  if (m->vs.state == MENU_VS_CONNECTING) {
     snprintf(m->vs.note, sizeof m->vs.note, "%s", silent > VS_SILENT ? quiet : "CONNECTING...");
+    vs_last_set(silent > VS_SILENT ? (m->vs.kind == MENU_VS_NET ? "NO ANSWER (CHECK THE CODE, FIREWALL, ROUTER)" : "NO ANSWER FROM THE HOST (FIREWALL?)")
+                                   : "STILL CONNECTING...");
+  }
   else if (silent > VS_SILENT)
     snprintf(m->vs.note, sizeof m->vs.note, "%s", quiet);
   else
