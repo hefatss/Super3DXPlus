@@ -154,7 +154,7 @@ def build(sdk, jdk, out_apk, pkg=None, label=None, embed=None, vulkan=True, keys
     icon = os.path.join(ROOT, "data", "icon", "Icon-76@2x.png")  # a plain placeholder unless you put your own artwork there
     if not os.path.isfile(icon):
         os.makedirs(os.path.dirname(icon), exist_ok=True)
-        run([sys.executable, os.path.join(ROOT, "tools", "dev", "placeholder_icon.py"), icon], env=env)
+        run([sys.executable, os.path.join(ROOT, "tools", "placeholder_icon.py"), icon], env=env)
     os.makedirs(os.path.join(work, "res", "mipmap"), exist_ok=True)
     shutil.copy(icon, os.path.join(work, "res", "mipmap", "icon.png"))
     res_zip = os.path.join(work, "res.zip")

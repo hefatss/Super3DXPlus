@@ -9,15 +9,8 @@ and baked into `menu.bin` by `tools/menupack.py`.
 - `../headline.py`: `render_headline(text)`, the halo model and its constants.
 - `test_titles.py`: renders a list of titles to one PNG, to look at them on a dark grey.
 
-## How the halo was found (dev/, not needed to build)
+## How the halo was found
 
-Run against a dump of the arcade's title sprites (`ARCADE_VIEW`, default `build/arcade-view`; the English build's
-`data/sprite-us/menu_p_topbar_mes_*.png`):
-
-- `dev/edt_profile.py`: opacity and colour of the real halo by distance from the white letters (all the titles agree: a tight red
-  falling to white, nothing past 6 px).
-- `dev/alpha_colour.py`: the finding that the halo's colour is tied to its opacity: green and blue = 255 - alpha.
-- `dev/fitglow.py`: fits the letters' mask blurred (sigma), opacity gain * blur ** power, to the real alpha.
-  (best fit: sigma 1.8, power 0.8, gain 550; `headline.py` uses 1.95 / 0.83 / 450, tuned by eye against the real ones.)
-- `dev/fetch_candidates.sh` + `dev/compare_fonts.py <spacing> a|b`: the candidate fonts drawn in the glow next to the arcade's own
-  titles (`HEADLINE_FONTS` the font folder, `HEADLINE_OUT` where the sheets go). `dev/real_titles.py` sheets the real titles.
+Fitted against a dump of the arcade's title sprites (the English build's `data/sprite-us/menu_p_topbar_mes_*.png`): a tight red
+falling to white, nothing past 6 px, opacity tied to colour (green and blue = 255 - alpha). `render_headline` uses sigma 1.95,
+power 0.83, gain 450, tuned by eye against the real ones.

@@ -1,9 +1,0 @@
-# CRT output settings (read when the game starts; edit and restart it: sudo systemctl restart wmmt)
-# safe_x / safe_y: the part of the 720x480 frame the picture covers (1.0 = all of it; lower to pull the picture in from the overscan)
-safe_x 0.90
-safe_y 0.90
-# flicker: the interlace flicker filter, 0 off .. 1 full (blurs one-pixel horizontal lines that flicker in a field)
-flicker 0.5
-# the game's drawing size (640x480 is the arcade's)
-width 640
-height 480

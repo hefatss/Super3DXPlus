@@ -1,4 +1,4 @@
-"""Helpers shared by the guided setups (build.py wizard, and the Pi and Android setups): prompts, a logged child process, and plain-language
+"""Helpers shared by the guided Android setup (build.py android, tools/setup_android.py): prompts, a logged child process, and plain-language
 explanations of failures."""
 import os
 import re
@@ -150,37 +150,3 @@ def browse_folder():
         return ""
 
 
-def choose_build(what):
-    """the finished build (a Super3DXPlus-<version> folder made by the main setup) that `what` should use, and the game folder it came from;
-    returns (folder, info, game) or None after saying what to do"""
-    import json
-    builds = []
-    for name in sorted(os.listdir(ROOT)):
-        d = os.path.join(ROOT, name)
-        if name.startswith("Super3DXPlus-") and os.path.isfile(os.path.join(d, "build-info.json")) and os.path.isdir(os.path.join(d, "data")):
-            try:
-                builds.append((d, json.load(open(os.path.join(d, "build-info.json"), encoding="utf-8"))))
-            except ValueError:
-                pass
-    if not builds:
-        say("\nI cannot find a finished build. Run the main setup first (setup.bat / ./setup.sh), then run this again.")
-        return None
-    if len(builds) == 1:
-        folder, info = builds[0]
-    else:
-        say("\nMore than one build was found:")
-        for i, (d, inf) in enumerate(builds, 1):
-            say("  %d) %s  (%s version, built %s)" % (i, os.path.basename(d), inf.get("region", "?"), inf.get("built", "?")))
-        pick = ask("Which one goes on the %s? [1] " % what, "1")
-        folder, info = builds[int(pick) - 1] if pick.isdigit() and 1 <= int(pick) <= len(builds) else builds[0]
-    say("Using: %s (%s version)" % (folder, info.get("region", "?")))
-    game = info.get("game_dir")
-    if not game or not os.path.isfile(os.path.join(game, "main")):
-        say("\nI need your game folder again (to regenerate the sources for this version).")
-        game = None
-        while not game:
-            a = ask("Paste the game folder here, or press Enter to browse (q to quit): ")
-            if a.lower() == "q":
-                return None
-            game = find_game(a or browse_folder() or "")
-    return folder, info, game

@@ -22,8 +22,7 @@ game runs on several targets.
                                            |
             +------------------------------v-------------------------------+
             | platform/<target>/  window + GL context, audio output, input, |
-            |   storage paths, the main loop:  android/ now; sdl2/ next     |
-            |   (one backend for PC, Raspberry Pi and, later, the web)      |
+            |   storage paths, the main loop:  android/                    |
             +--------------------------------------------------------------+
 ```
 
@@ -42,21 +41,20 @@ The executable differs between regions, so addresses differ. Three mechanisms ke
    a list of numbers and is what is committed, not the executables.
 
 Only **one build's generated files** live in a tree at a time (`src/*db.h`, `src/phys/*`, `tools/*.json`... all
-git-ignored). `tools/dev/compare_builds.sh` makes a clean copy per build when two have to be compared.
+git-ignored).
 
-## Where the platform line is, and what comes next
+## Where the platform line is
 
-Today `src/` still has iOS and EGL conditionals from Re3DX+ (`__APPLE__`, `WMMT_EGL`, `WMMT_VK`) and Android's code lives
-in `platform/android/` (entry point, the Vulkan-under-GLES layer `vkgl.c`, AAudio, the Java shell). The next step is to
-turn the implicit boundary into an explicit small interface and add `platform/sdl2/`:
+`src/` still has iOS and EGL conditionals from Re3DX+ (`__APPLE__`, `WMMT_EGL`, `WMMT_VK`); Android's code lives
+in `platform/android/` (entry point, the Vulkan-under-GLES layer `vkgl.c`, AAudio, the Java shell):
 
-- video: create a GLES2 context at 640x480, swap, and (Pi) set a 480i KMS mode;
-- audio: a PCM callback, with the device chosen and re-chosen at run time (USB DAC first, HDMI fallback);
-- input: gamepads through SDL's GameController layer, turned into **actions** (steer, throttle, brake, shift, menu
-  navigate/confirm/back) so the menus no longer depend on touch events;
-- storage: where profiles and settings go (SD card or an external drive).
+- video: a GLES2 context, or a Vulkan one, at the game's resolution;
+- audio: AAudio, with the music decoded whole (`platform/sdl2/bgm.c`, built with pthreads in place of SDL's);
+- input: the game pad through the Java shell, turned into **actions** (steer, throttle, brake, shift, menu
+  navigate/confirm/back);
+- storage: where profiles and settings go (the app's external files folder).
 
-That interface is deliberately about a dozen functions. If it grows past what the Android and SDL2 backends need, it is
+That interface is deliberately about a dozen functions. If it grows past what the Android backend needs, it is
 too big.
 
 ## Conventions

@@ -16,7 +16,7 @@ same seven actions (`src/menu.h`):
 In a race the same keys drive the car (`app_key`): Left/Right steer, Up/Down accelerate and brake (pad: A / right trigger gas,
 B / left trigger brake, the stick or d-pad steer), Z/X (pad bumpers) shift down and up, C (Y) the camera, R (X) reset, T the
 transmission, P (Start) pause. Esc quits. Which meaning a control has is decided by `app_racing()`; the table is `CTL` in
-`platform/sdl2/main_sdl.c`, which also keeps the d-pad auto-repeat and the stick and trigger thresholds.
+the Android input code (`platform/android/main_android.c`), which also keeps the d-pad auto-repeat and the stick and trigger thresholds.
 
 ## How it is wired
 
@@ -91,14 +91,11 @@ control glyphs on the bottom bar come once the flow is settled.
 
 ## The window's shape
 
-The game's layout is 4:3 (1024 x 768). The SDL player draws into a framebuffer the size of the window and uses the app's own
-wide-screen support (`app_resize` -> `app_wide`, the same as Android's): a window wider than 4:3 shows the layout in its middle with
-the sides filled, the race's keys on the real edges. The window can be resized while playing (the player tells the app between
-frames); one narrower than 4:3 is made 4:3 (windowed), and in fullscreen on a tall display the 4:3 picture sits at the bottom.
+The game's layout is 4:3 (1024 x 768). A given device's screen is mapped onto it through the app's own wide-screen support
+(`app_resize` -> `app_wide`): a wide display shows the layout in its middle with the sides filled, the race's keys on the real
+edges.
 
-The mouse is mapped to the layout's px the way a touch is (x from `-edge` to `1024 + edge`, `to_layout_x` in `main_sdl.c`). Tested at
-1024x768, 1280x720, 1720x720, 1600x500, 640x480, 800x600 (800x640 made 4:3): the menus, the race and the HUD at each, and
-`MT3DX_CLICK="<s>:<x>,<y>;..."` / `MT3DX_RESIZE="<s>:<w>x<h>;..."` check the mapping and a live resize (window pixels, seconds).
+Taps and touches are mapped to the layout's px the way the menus expect (x from `-edge` to `1024 + edge`, `to_layout_x`).
 
 ## The race's look (HUD style)
 
@@ -116,12 +113,11 @@ The mouse is mapped to the layout's px the way a touch is (x from `-edge` to `10
 Set it before `app_wide` / `app_resize` (`hud_wide` lays the consoles out); the lifts `hud_lift` and `hud_lift_parts` are the touch style's
 and do nothing in the arcade's.
 
-### The scanline bars (the Pi test)
+### The scanline bars (the 640x480 test)
 
 The nameplate's and the route map's backgrounds carry the arcade's scanline bars, a row of the texture to a row of the 640x480 screen.
 The arcade style at a 640x480 window (and 720x480) lays every sprite on whole pixels, so the bars come out as on the cabinet; scaled
 to any other size they smear (a 1024x768 window measures 64 % of the rows alternating, against 100 % at 640x480).
-A time attack run at those sizes, shot and measured against the cabinet's own frame shows it.
 
 ## Key bindings
 
@@ -190,51 +186,3 @@ The pad's two rumble motors follow the player's car in a running race (nothing i
 GAME OPTIONS > VIBRATION has OVERALL, WALL HITS, EXPANSION JOINTS and TIRE SLIP, each in tenths (the defaults: overall 80 %, the slip 50 %, the others 100 %); they are saved as
 the `rumble4` line of `option`. The code is `src/haptic.c`; `MT3DX_FXLOG=1` logs its pulses.
 
-## Steering wheels and force feedback
-
-**Untested on real hardware** (the author has no wheel): the code is written against SDL's documented API and checked with a virtual wheel
-(`MT3DX_VWHEEL`) for the device list, raw axes, buttons and saved settings, but no force has been played on a motor yet. Reports from wheel
-owners are what it needs; see "Testing a wheel" below.
-
-**The arcade's own protocol is not used.** The cabinet's wheel is driven by its I/O board, which is not part of what was recompiled, so
-there is nothing to pass through. The forces are made from the player's car (`src/ffb.c`) and played through SDL's haptic API
-(`platform/sdl2/wheel.c`), which covers wheels that have a force feedback driver (DirectInput on Windows, evdev on Linux, so also the Pi).
-XInput-only devices and Android are not covered (Android keeps its pad rumble).
-
-**Using one.** Plug the wheel in before starting, then SETTINGS > CONTROLS > KEY BINDINGS > **WHEEL** (the fourth list; View switches lists):
-
-- **DEVICE**: left and right choose among the joysticks found (plain pads are left out; a device is listed even without force feedback,
-  it then only steers). The line under the list says what the device reports: its axes and buttons and which force types it can play.
-  The choice is saved by name, so it comes back when the wheel is plugged in again.
-- **FORCE FEEDBACK** (on / off), **INVERT FORCE** (switch it if the wheel pulls away from straight ahead; the direction convention of
-  drivers differs and could not be checked), **OVERALL** (the device's gain), **STEERING FORCE**, **CENTERING**, **DAMPING**, **ROAD EFFECTS**
-  (tenths, 0-100 %), **TEST** (a sweep from side to side and a shake, 2.5 s) and RESET TO DEFAULT.
-- Saved as `<save dir>/ffb`. Defaults are mild (overall 60 %).
-
-**Steering and pedals** come in as the wheel's raw joystick axes (the chosen wheel is read as a joystick, not as a game controller, because
-SDL has no layout for most wheels). They are bindable on the **AXES** list as WHEEL AXIS 1-8 (the first eight axes the device reports): OK
-on the AXIS cell, then turn the wheel or press the pedal (a pedal is taken when it moves far from where it rests). Use INVERT if a pedal
-reads the wrong way round. A wheel's pedal is read over its whole throw (rest to floor). Wheel buttons are bindable on the MENUS and RACE
-lists as WHEEL BTN 1-32 (PAD cells); the first hat is the D-pad. Set the wheel's rotation (e.g. 900 degrees) in its driver, and the
-steering response with the AXES list's dead zone and SENS. (and the steering filter).
-
-**The forces** (`ffb_step`), from the car's sim each arcade frame, all fading to nothing below walking speed:
-
-- steering force: against the car's lateral g (the pull towards straight ahead), lighter as the front tyres pass their grip, plus a pull
-  towards the way the car is going in a slide (counter-steer);
-- centering spring and damping, growing with speed;
-- road effects: the pad vibration's pulses (expansion joints, wall hits and scrapes, tyre slip; `haptic.c`) as one vibration of the wheel.
-  The VIBRATION settings (controller rumble) scale these too.
-
-All of it is a first guess at what feels right. The numbers to tune are at the top of `ffb_step`.
-
-**Testing a wheel.** `MT3DX_LOG=1` prints the wheel axes and buttons as they arrive, and the player prints one `wheel:` line with what it
-opened and which force types it created (stderr). If the wheel is listed but the line says no force feedback, the driver or OS permissions
-are the cause (on Linux the `/dev/input/event*` node must be writable by the player's user). Useful in a report: the wheel's model, OS, the
-`wheel:` line, which forces were felt, and whether INVERT FORCE was needed.
-
-## Window mode (the PC player)
-
-GAME OPTIONS > WINDOW MODE switches between a window and borderless fullscreen; F11 or Alt+Enter does the same at any time. The choice is
-the `window` line of the `option` file, so the next start opens the same way; `--fullscreen` on the command line starts fullscreen whatever
-was saved. The row is not shown on the Raspberry Pi (it always runs fullscreen) or in a CRT run.

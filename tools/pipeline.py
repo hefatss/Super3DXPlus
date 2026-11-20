@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""The data pipeline, in Python so that it runs the same on Windows, Linux and macOS (no shell, no WSL):
+"""The data pipeline, in Python so that it runs the same on Windows, Linux and macOS (no shell, no WSL). It feeds the Android build
+(`python build.py data <arcade root>` / `python build.py android`):
 
     python tools/pipeline.py gen <arcade root> [--phys]       tables, lists and (--phys) the recompiled physics, from the arcade's `main`
     python tools/pipeline.py convert <arcade root> [--no-media] [--only STEP] [--keep-going]
@@ -7,7 +8,7 @@
     python tools/pipeline.py steps                            list the conversion steps
 
 <arcade root> is a folder with `main` and `data/`: a dump of your own copy of the game, never changed here. `gen` must run
-before `convert`, and both before the player is built (`python build.py exe`). Every conversion step has a time limit and a
+before `convert`. Every conversion step has a time limit and a
 log (build/logs/<step>.log); the first failed step stops the run and says which (--keep-going carries on and lists them all),
 so a half-converted data set cannot pass for a finished one. Needs the Python packages of tools/requirements.txt, and for
 `convert` an ffmpeg with the Bink decoder and libx264/libvorbis (found on PATH, or named by FFMPEG).
@@ -348,11 +349,9 @@ def _movie_label_filter(mp4):
     return f.format(i=2 if mp4 else 1, fps="" if mp4 else ",fps=30")
 
 
-def prepare_movies(ctx, mp4=True, wmv=True):
-    """the attract movies: .mp4 (H.264 + AAC) for Android, .wmv (the port's: JPEG frames and an Ogg soundtrack in one file, pack_movie.py)
-    for the SDL2 player. The Bink videos are silent 640x480; the arcade plays sound/bgm/attract/*_<language>.wav over them and blinks
+def prepare_movies(ctx, mp4=True):
+    """the attract movies: .mp4 (H.264 + AAC) for Android. The Bink videos are silent 640x480; the arcade plays sound/bgm/attract/*_<language>.wav over them and blinks
     a label over playdemo and tutorial (opacity |1 - 2 frac(t)| over 60 frames), burned in here."""
-    import tempfile
     ff = ffmpeg_exe()
     d = ctx.d
     lang = ctx.lang
@@ -370,19 +369,7 @@ def prepare_movies(ctx, mp4=True, wmv=True):
                    "-filter_complex", _movie_label_filter(True), "-map", "[v]", "-map", "1:a", "-shortest", *enc, out)
             else:
                 sh(ff, "-y", "-v", "error", "-i", bik_p, "-i", wav_p, "-map", "0:v", "-map", "1:a", "-shortest", *enc, out)
-        if wmv and not os.path.isfile(os.path.join(ROOT, "data", name + ".wmv")):
-            quality = os.environ.get("QUALITY", "5")
-            with tempfile.TemporaryDirectory() as tmp:
-                frames = os.path.join(tmp, "f")
-                os.makedirs(frames)
-                ogg = os.path.join(tmp, "a.ogg")
-                sh(ff, "-y", "-v", "error", "-i", wav_p, "-ar", "44100", "-ac", "2", "-c:a", "libvorbis", "-q:a", "4", ogg)
-                if label:
-                    sh(ff, "-y", "-v", "error", "-i", bik_p, "-loop", "1", "-framerate", "30", "-i", os.path.join(d, "sprite", label), "-filter_complex",
-                       _movie_label_filter(False).replace("[2:v]", "[1:v]"), "-map", "[v]", "-q:v", quality, "-pix_fmt", "yuvj420p", os.path.join(frames, "%05d.jpg"))
-                else:
-                    sh(ff, "-y", "-v", "error", "-i", bik_p, "-vf", "fps=30", "-q:v", quality, "-pix_fmt", "yuvj420p", os.path.join(frames, "%05d.jpg"))
-                sh(PY, "tools/media/pack_movie.py", "data/%s.wmv" % name, ogg, frames, "30", env=ctx.env)
+
 
 
 def steps(ctx):

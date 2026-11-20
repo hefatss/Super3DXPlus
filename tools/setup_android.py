@@ -1,4 +1,4 @@
-"""The Android setup (`python build.py android`, or setup-android.bat / ./setup-android.sh): run it AFTER the main setup.
+"""The Android setup (`python build.py android`, or setup-android.bat / ./setup-android.sh): the one setup this branch has.
 
 It finds or downloads what an Android build needs (a JDK, and the Android SDK with its build tools and NDK), builds ONE self-contained APK with
 the game's data inside (Super3DXPlus-<version>-Android.apk), and installs it on a phone connected by USB if you like. Works from Windows, Linux
@@ -16,7 +16,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
 
-from setupkit import ROOT, ISSUES, say, ask, yes, step, which, choose_build, run_logged, explain_failure
+from setupkit import ROOT, ISSUES, say, ask, yes, step, which, find_game, browse_folder, run_logged, explain_failure
 
 TOOLS = os.path.join(ROOT, ".super3dx")
 SDK_PACKAGES = ["platform-tools", "platforms;android-34", "build-tools;35.0.0", "ndk;26.1.10909125"]
@@ -261,19 +261,41 @@ def install_on_phone(sdk, apk, pkg):
 
 
 # ------------------------------------------------------------------------------------------------------------ the setup
+KNOWN = {"22b9bbcc5a0cefd42a4e83b2dd892c98": "Japan", "aac96862372ee774a14096792fc40c13": "Export"}
+
+
+def find_md5(game):
+    return hashlib.md5(open(os.path.join(game, "main"), "rb").read()).hexdigest()
+
+
 def run(build_py, jobs):
     total = 4
     say("")
     say("Super3DX+ setup for Android")
-    say("Run this after the main setup. It builds an Android app (an APK) with the game's data inside, for phones and handhelds with Android 9 or newer")
-    say("(a 64-bit ARM device with Vulkan: nearly everything made since 2018).")
+    say("This downloads what an Android build needs (a JDK, and the Android SDK with its build tools and NDK), asks for your copy of the game,")
+    say("converts the data and builds ONE self-contained APK with the game inside it, for phones and handhelds with Android 9 or newer (a 64-bit")
+    say("ARM device with Vulkan or GLES3). You can leave it alone while it works.")
 
-    step(1, total, "find the game you built")
-    chosen = choose_build("phone")
-    if not chosen:
-        return 1
-    folder, info, game = chosen
-    region = info.get("region", "Custom")
+    step(1, total, "find your copy of the game")
+    say("I need the folder that holds your copy of the game: it has a file called `main` and a folder called `data` inside.")
+    game = None
+    while not game:
+        say("\nPress Enter to browse for the folder, or paste / drag the folder into this window and press Enter (q to quit).")
+        a = ask("> ")
+        if a.lower() == "q":
+            return 1
+        game = find_game(a or browse_folder())
+    md5 = find_md5(game)
+    region = KNOWN.get(md5)
+    say("\nGame folder: " + game)
+    if region:
+        say("Recognised: the %s version of 3DX+." % region)
+    else:
+        say("This `main` is not one of the versions this project was tested with (docs/BUILDS.md lists them).")
+        say("It may still work, but expect problems.")
+        if not yes("Carry on anyway?", False):
+            return 1
+        region = "Custom"
     pkg = "com.wmmt.port" if region == "Japan" else "com.wmmt.port." + region.lower()
     label = "Super3DX+ (%s)" % region
     free = shutil.disk_usage(ROOT).free / 2**30
@@ -286,18 +308,18 @@ def run(build_py, jobs):
     jdk = ensure_jdk()
     sdk = ensure_sdk(jdk)
 
-    step(3, total, "build the app")
+    step(3, total, "convert the data and build the app")
     log = os.path.join(ROOT, "build", "logs", "setup-android-%s.txt" % time.strftime("%Y%m%d-%H%M%S"))
     say("(everything below is also saved in %s)\n" % os.path.relpath(log, ROOT))
-    say("Regenerating the sources for this version of the game...")
-    rc = run_logged([sys.executable, build_py, "gensrc", game], log)
+    say("Converting the game's data and regenerating the sources (about an hour)...")
+    rc = run_logged([sys.executable, build_py, "data", game], log)
     if rc:
         explain_failure(log, rc)
         return 1
     out_apk = os.path.join(ROOT, "Super3DXPlus-%s-Android.apk" % region)
     keystore = os.path.join(TOOLS, "android", "debug.keystore")
     cmd = [sys.executable, os.path.join(ROOT, "platform", "android", "build_apk.py"), "--sdk", sdk, "--jdk", jdk, "--out", out_apk, "--pkg", pkg,
-           "--label", label, "--embed", os.path.join(folder, "data"), "--keystore", keystore]
+           "--label", label, "--embed", os.path.join(ROOT, "data"), "--keystore", keystore]
     rc = run_logged(cmd, log)
     if rc:
         explain_failure(log, rc)

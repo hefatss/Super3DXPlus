@@ -3,13 +3,13 @@
 ## Based on Re3DX+
 
 This project builds on **Re3DX+**, an unofficial port of the arcade game to old iOS and Android devices, by
-**高橋涼介のFC** (GitHub: [Allannn-sudo](https://github.com/Allannn-sudo)), released under the MIT licence
+**é«˜æ©‹æ¶¼ä»‹ã®FC** (GitHub: [Allannn-sudo](https://github.com/Allannn-sudo)), released under the MIT licence
 (see `LICENSE`, which keeps the original copyright line).
 
 Re3DX+ showed that the arcade game's car physics can be statically recompiled from its i386 executable to C, and it
 did the large work of rewriting the rendering, menus, HUD, sound and the asset converters from reverse engineering. The
-code under `src/`, `tools/` and `test/` started as that work; this project adds to it (support for more than one build of
-the game, a build-independent layout, Linux tooling and a Raspberry Pi port). The original project's own READMEs
+code under `src/` and `tools/` started as that work; this project adds to it (support for more than one build of
+the game, a build-independent layout, a 64-bit ARM Android port). The original project's own READMEs
 are kept in `docs/upstream/`. Thank you to its author.
 
 ## No game content here

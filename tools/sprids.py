@@ -10,7 +10,7 @@ tools/menupack.py...) were read off the Japan build; this module turns them into
           PIC_<name> -> the id of the picture of that name
           both resolved by the src/spriteids.h this file writes:  sprids.py <main> <out header> [source file or folder...]
   Python: J(2239), J([..]) -> the same, for the converters' lists  (tools/jpids.json: Japan id -> picture name, for the
-          ids the hand-written code uses; tools/dev/mkjpids.py makes it from a Japan dump)
+          ids the hand-written code uses; it is a dump of the Japan build's ids)
 
 A picture the build does not have (the Japan build's Honda cars' colour swatches, in the export build) has no id: JID gives -1 and
 J leaves it out, with a note.
@@ -87,7 +87,7 @@ def table(main=None):
 
 
 _jp = None
-RECORD = None  # tools/dev/mkjpids.py: a set that J() fills with the Japan ids it is asked for
+RECORD = None  # a set that J() fills with the Japan ids it is asked for
 
 
 def _jpids():
@@ -107,7 +107,7 @@ def jid(n, by_name=None):
         RECORD.add(n)
     name = _jpids().get(n)
     if name is None:
-        raise KeyError("sprite id %d is not in tools/jpids.json (tools/dev/mkjpids.py)" % n)
+        raise KeyError("sprite id %d is not in tools/jpids.json " % n)
     bn = by_name if by_name is not None else table()[1]
     i = bn.get(name)
     if i is None and (n, name) not in _noted:

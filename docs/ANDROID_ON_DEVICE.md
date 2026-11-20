@@ -3,7 +3,7 @@
 This builds the game from your own game files **entirely on the Android device**, with no PC: the data (about an hour), then the app (a few
 minutes), then installing it. It uses [Termux](https://termux.dev), a terminal for Android.
 
-If you have a PC, `setup.bat` / `./setup.sh` and then `setup-android` (see the README) are easier. This page is for when you do not.
+If you have a PC, `setup-android.bat` / `./setup-android.sh` (see the README) is easier. This page is for when you do not.
 
 **What was tested:** the whole of this page, start to finish, for the Export version on a Retroid Pocket 5 (Android, Snapdragon, 64-bit ARM) with
 Termux 0.118 (Python 3.14): a fresh checkout, the data (72 minutes), the app (3 minutes), install, then the game itself: the menus, and a drive

@@ -1,8 +1,8 @@
 /* Force feedback for a steering wheel (docs/INPUT.md, "Force feedback"): what the player's car does, as the forces a wheel's motor should give.
  *
  * The port has no copy of the cabinet's wheel protocol (the arcade's I/O board is not part of what was recompiled), so the forces are made here
- * from the car's own sim and sent through SDL's haptic API (platform/sdl2/wheel.c), which every wheel the OS gives a force feedback driver
- * (DirectInput on Windows, evdev on Linux) understands. The effects:
+ * from the car's own sim and handed to the platform's force feedback consumer (on the PC build, SDL haptic through
+ * platform/sdl2/wheel.c; Android has no wheel backend and keeps only its pad rumble). The effects:
  *   - steering force: the pull of the front tyres (the car's lateral g), lighter as the tyres pass their grip, and towards the way the car is
  *     going in a slide (counter-steer);
  *   - centering spring and damping, both growing with speed (nothing while parked);

@@ -1,5 +1,5 @@
 """What the tools need from the system that is not a Python package, found the same way on Windows, Linux and macOS:
-a C++ demangler (c++filt, or tools/demangle.cpp built with Zig, which is what Windows uses) and fonts (any of a list of file names in the usual font folders, or in
+a C++ demangler (c++filt, or tools/demangle.cpp built with any C++ compiler, which is what Windows uses) and fonts (any of a list of file names in the usual font folders, or in
 the folders named by MT3DX_FONT_DIRS, `;` or `:` separated)."""
 import glob
 import os
@@ -8,7 +8,7 @@ import subprocess
 
 
 def _helper_compilers():
-    """C++ compilers that can build tools/demangle.cpp: the Zig that build.py setup-zig fetched, one on PATH, or a C++ compiler on PATH"""
+    """C++ compilers that can build tools/demangle.cpp: one on PATH, or a C++ compiler on PATH"""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     exe = "zig.exe" if os.name == "nt" else "zig"
     for z in (os.path.join(root, ".super3dx", "zig", exe), shutil.which("zig")):
@@ -22,7 +22,7 @@ def _helper_compilers():
 
 
 def _demangle_helper():
-    """tools/demangle.cpp built once into .super3dx/ (libc++abi's demangler, from Zig or any C++ compiler); None if it cannot be built"""
+    """tools/demangle.cpp built once into .super3dx/ (libc++abi's demangler, from any C++ compiler); None if it cannot be built"""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     src = os.path.join(root, "tools", "demangle.cpp")
     out = os.path.join(root, ".super3dx", "demangle" + (".exe" if os.name == "nt" else ""))
@@ -37,14 +37,13 @@ def _demangle_helper():
 
 def demangle_many(names):
     """the demangled names in the same count and order, like `c++filt -n`: with c++filt (binutils) or llvm-cxxfilt where they are on PATH, else
-    with tools/demangle.cpp (built once from Zig's or a C++ compiler's libc++abi: that is what Windows uses)"""
+    with tools/demangle.cpp (built once from a C++ compiler's libc++abi: that is what Windows uses)"""
     names = list(names)
     exe = shutil.which("c++filt") or shutil.which("llvm-cxxfilt")
     if not exe:
         exe = _demangle_helper()
     if not exe:
-        raise SystemExit("no C++ demangler: install binutils (Linux: sudo apt install binutils), or on Windows run `python build.py setup-zig` "
-                         "(the setup does this for you), then try again")
+        raise SystemExit("no C++ demangler: install binutils (Linux: sudo apt install binutils), or a C++ compiler (g++ / clang++) on Windows, then try again")
     cmd = [exe, "-n"] if os.path.basename(exe).lower().startswith(("c++filt", "llvm-cxxfilt")) else [exe]
     r = subprocess.run(cmd, input="\n".join(names).encode("utf-8"), capture_output=True)
     out = r.stdout.decode("utf-8", "replace").replace("\r", "").split("\n")

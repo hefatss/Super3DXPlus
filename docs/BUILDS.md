@@ -57,7 +57,7 @@ The asset converters (`python tools/pipeline.py convert <dump>`) on the Export d
   error when it finds nothing. After the fix the export build gives 111 files, 2315 rows, 2105 texts. The lesson: a tool
   that reports success on an empty input is a bug; check counts, not exit codes.
 - The 10-in-a-row banner is built differently in the export build: `%d racer` with the round's number, where Japan has
-  `%s人目` and a table of full-width numbers. `tools/menupack.py` handles both, and the addresses that automatic mapping
+  `%säººç›®` and a table of full-width numbers. `tools/menupack.py` handles both, and the addresses that automatic mapping
   cannot find are in `tools/addrs/export.overrides.json`, each with the reason.
 - With those, every step of `python tools/pipeline.py convert <dump>` passes on the Export dump (2026-11-03). The last, the menu, gives a
   `menu.bin` of 380,416,803 bytes (13,137 sprites, 338 animations) against Japan's 379,329,680 (13,284 sprites, 338
@@ -74,7 +74,7 @@ The asset converters (`python tools/pipeline.py convert <dump>`) on the Export d
   time zone select, the story's level and rival select, a time attack race, a story race (English dialogue and rival boxes) and a
   10 out run race all show English text.
 - Known English gaps: `menu_p_t_tuning_title_aeropart_template` does not exist in the export table (the dress-up part title); the
-  story rival select's episode tabs show a stray glyph beside "Story" (the port swaps in the Japanese 第/話 glyph sprites there);
+  story rival select's episode tabs show a stray glyph beside "Story" (the port swaps in the Japanese ç¬¬/è©± glyph sprites there);
   the tuning screens' "STEP" labels keep the full-width digits of the Japan wording; the result screens, garage and dress-up
   screens are not walked, nor are versus and ghost battle (they need the network).
 
@@ -85,7 +85,7 @@ and its region picks. The tools follow the build: `tools/addrs/<name>.json` carr
 `en` for the export build, `jp` otherwise), `wmmtaddr.lang()` returns it, and what the port writes itself is chosen by it:
 `titledb.py` (the title column and so the glyph set: 88 characters in English against 1,573), `menupack.py` `LANG_TEXT` (the default
 ranking name and title, the card's horsepower unit "HP", the class suffix " Class "), `hudpack.py` (the plate's "HP/" cut from the
-atlas, the Japanese 級 slot left empty, because the export dump's per-sprite PNGs for them are Japanese placeholders),
+atlas, the Japanese ç´š slot left empty, because the export dump's per-sprite PNGs for them are Japanese placeholders),
 `storysel.py` ("Start ramp"), `weartexts.py` ("Equipped !", "Reset to default wheels!") and `cardb.py` (the taxis' colour names).
 The Japan build's output is byte-identical to before for all of them.
 
@@ -106,7 +106,7 @@ The fix is by picture name, with nothing added to the repository but the names o
   id of a picture by name (for new code).
 - Python: `J(2239)` or `J([...])` in the converters (`menupack.py`, `steff.py`, `storysel.py`); a picture the build lacks is left out
   with a note (Japan's Honda swatches). The id collections `menupack.py` builds were checked identical for Japan.
-- `tools/dev/mkjpids.py <Japan main> --python` rewrites `jpids.json` when a new Japan id is written into the code. Do not write a
+- `jpids.json` (kept in the repo) is the Japan build's ids; rewrite it from a Japan dump when a new Japan id is written into the code. Do not write a
   new literal id: use `PIC_<name>` / `J` with the name, or the generated data.
 
 ## Makers and cars the build does not have
@@ -232,7 +232,7 @@ the garage right after the load (a round-trip test).
   `app_bgm_level` times overall times music, so the platforms need nothing else. Checked by the mixer's peak: overall 5 gave 62 % of the
   peak, car 0 left only the console's sounds, car 0 and effects 0 gave silence.
 - **Skipping the boot.** A key, button or click during the maker logos and the prologue goes to the title (after the first 10 frames).
-- **The first "new title" screen** (`MENU_SHOGO` phase 0) showed the rewrite's placeholder ぺ in the export build: its frames hold the
+- **The first "new title" screen** (`MENU_SHOGO` phase 0) showed the rewrite's placeholder ãº in the export build: its frames hold the
   28 px font's place (`menu_f_28_1_font`) where Japan's hold the 40 px one. `shogo_font` takes whichever the frame has, hides both, and
   scales the text to the place.
 
@@ -317,10 +317,7 @@ the frame), `menu_*` for the menus' cars. `WMMT_LOOK=<file>` reads another file 
   `clMeterConsole` (+0x29a for the For Racing meter, +0x29c for SPECIAL), and `drawMeter` shows `racing_rev_on_*` in place of `racing_rev_off_*`, or
   `sp2_rev_on_*` where the SPECIAL meter shows nothing. `meterdb.py` records both states (`METER_LAMP_ON` / `METER_LAMP_OFF` parts) and `hud.c`
   draws the one that fits `car->rev_rate`, and it blinks: `CSeq::Get2DInfoMeter` (A(0x89827c1)) passes the lamp on 3 frames of every 5 (the arcade frame counter mod 5 of 2, 3, 4). (The R35 SpecV's own rev ramp, `drawRevRampR35SpecV`, is not done.) Test: `WMMT_METER=1`.
-- **The attract movies** (SDL2 player; Android and iOS play MP4 as before). `platform/sdl2/movie.c`: `data/intro.wmv`, `playdemo.wmv`,
-  `tutorial.wmv`, made by `tools/pipeline.py` (step movies) (the Bink videos as baseline JPEG frames, decoded with `stb_image.h`, the
-  soundtrack as 44.1 kHz stereo Ogg Vorbis). The soundtrack clock drives the picture; a press on START ends the movie as in the arcade; a
-  missing file ends it at once (the old behaviour). About 125 MB for the three.
+- **The attract movies.** Android plays MP4 (`data/intro.mp4`, `playdemo.mp4`, `tutorial.mp4`, made by `tools/pipeline.py` convert, step movies). About 125 MB for the three.
 
 ## Special (custom) body colours
 
@@ -352,7 +349,7 @@ beside it (`tools/extrapack.py`; `python tools/pipeline.py convert <dump> --only
 (`src/anm.c` `extra_load`) reads it after `menu.bin`: the same sprite table, no animations; a sprite whose id `menu.bin` has takes its place, the
 others are added. Without the file or a sprite the screens draw their own discs and text. It holds the selectors' eight discs (ids 110000+: PLAY,
 SETTINGS, EXIT, GAME, CONTROLS, SOUND, STOCK, FULL TUNED), their top bar titles (110100+, placeholder wording, the arcade's 512 x 64 title layout) and
-"Game options" (replacing option text 10). Copy it next to `menu.bin` on the Pi and Android too.
+"Game options" (replacing option text 10). Copy it next to `menu.bin` on Android too.
 
 ### menu_extra.bin's animations, the card check's pages and the bottom bar's key glyphs
 
@@ -367,7 +364,7 @@ stand on it, each in seconds' rebuild (a local dev script (not kept here)) rathe
   the password). The view key steps through them, the gas confirms; on 8 and 9 up/down chooses the row and left/right the choice (transmission,
   meter, music volume and sound source are the port's own; retire and the password are shown at rest). Figures the port does not keep (ghost
   matches, conquered areas, the driving style, the time attack's cars) show as an empty card's. Their text is the arcade's own fonts 1, 2 and 5 as
-  ASCII glyphs (`EXF_BASE`, `ex_text`). New JID(...) ids written into `cardpages.h` need `tools/dev/mkjpids.py` (then merge with the old
+  ASCII glyphs (`EXF_BASE`, `ex_text`). New JID(...) ids written into `cardpages.h` need `jpids.json` updated (merge with the old
   `jpids.json`: it alone drops the converters' computed ids).
 
 `tools/stage/pack_lights.py` bakes the street, building and bridge lights' and the goal's glows as rgb * alpha, opaque, so that 565 with a dither

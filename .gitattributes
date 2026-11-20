@@ -1,10 +1,10 @@
-# Scripts and sources are read on Linux (WSL, the Pi): keep LF everywhere, whatever Windows' git is set to.
-* text=auto eol=lf
-*.sh text eol=lf
-*.py text eol=lf
-*.c text eol=lf
-*.h text eol=lf
-*.png binary
-*.jpg binary
-*.jar binary
-*.bat text eol=crlf
+# Scripts and sources are read on Windows and Linux: keep LF everywhere, whatever Windows' git is set to.
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.c text eol=lf
+*.h text eol=lf
+*.png binary
+*.jpg binary
+*.jar binary
+*.bat text eol=crlf

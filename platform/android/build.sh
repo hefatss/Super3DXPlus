@@ -67,7 +67,7 @@ $CC -O2 -fPIC -shared -std=gnu99 -Wall -Wno-unused-function -DRC_FPT=double -DWM
 # placeholder unless data/icon/Icon-76@2x.png exists (put your own artwork there)
 if [ ! -f data/icon/Icon-76@2x.png ]; then
   mkdir -p data/icon
-  python3 tools/dev/placeholder_icon.py data/icon/Icon-76@2x.png
+  python3 tools/placeholder_icon.py data/icon/Icon-76@2x.png
 fi
 mkdir -p "$OUT/res/mipmap"
 cp data/icon/Icon-76@2x.png "$OUT/res/mipmap/icon.png"
