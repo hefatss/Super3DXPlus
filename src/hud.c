@@ -183,6 +183,11 @@ static int steer_touch(hud_state *h, void *id, int phase, float x, float y) {
 
 static int tune_click(hud_state *h, float x, float y);
 
+/* the shift keys lit while a finger is on them, and for a few frames after a quick tap (they act on the touch's start, so a tap is over before a frame is drawn) */
+static void *SHIFT_ID[2];
+static int SHIFT_FLASH[2];
+#define SHIFT_FLASH_FRAMES 7
+
 void hud_touch(hud_state *h, void *id, int phase, float x, float y) {
   if (h->tune_open && phase == TOUCH_BEGAN && tune_click(h, x, y)) return; /* (the steering filter's panel takes its clicks) */
   if (STYLE == HUD_STYLE_ARCADE) return; /* (no touch keys on the arcade's screen) */
@@ -194,8 +199,8 @@ void hud_touch(hud_state *h, void *id, int phase, float x, float y) {
   } else if (phase == TOUCH_BEGAN) {
     if (inside(throttle, x, y)) h->throttle_touch = id;
     else if (inside(brake, x, y)) h->brake_touch = id;
-    else if (inside(up, x, y)) h->shift_up++;
-    else if (inside(down, x, y)) h->shift_down++;
+    else if (inside(up, x, y)) h->shift_up++, SHIFT_ID[0] = id, SHIFT_FLASH[0] = SHIFT_FLASH_FRAMES;
+    else if (inside(down, x, y)) h->shift_down++, SHIFT_ID[1] = id, SHIFT_FLASH[1] = SHIFT_FLASH_FRAMES;
     else if (inside(key(CAMERA, KEY_TOP), x, y)) h->camera_pressed++;
     else if (inside(key(TRANS, KEY_TOP), x, y)) h->trans_pressed++;
     else if (inside(key(PAUSE, KEY_TOP), x, y)) h->pause_pressed++;
@@ -220,6 +225,8 @@ void hud_touch(hud_state *h, void *id, int phase, float x, float y) {
     if (id == h->right_touch) h->right_touch = 0;
     if (id == h->throttle_touch) h->throttle_touch = 0;
     if (id == h->brake_touch) h->brake_touch = 0;
+    if (id == SHIFT_ID[0]) SHIFT_ID[0] = NULL;
+    if (id == SHIFT_ID[1]) SHIFT_ID[1] = NULL;
   }
 }
 
@@ -2611,12 +2618,14 @@ static void draw_keys(const hud_state *h, float steer, int all_keys) {
     /* shift up / down (each key's own projection: the player places and sizes them apart) */
     side_proj = key_ortho(h->screen_w, h->screen_h, KEY_SHIFT_UP);
     glUniformMatrix4fv(u_proj, 1, GL_FALSE, side_proj.m);
-    button(up, 0);
+    button(up, SHIFT_ID[0] != NULL || SHIFT_FLASH[0] > 0);
     color(1, 1, 1, 0.92f);
     chevron(up.x + up.w / 2, up.y + up.h / 2 - 4, 22, 0, -1);
+    if (SHIFT_FLASH[0] > 0) SHIFT_FLASH[0]--;
+    if (SHIFT_FLASH[1] > 0) SHIFT_FLASH[1]--;
     side_proj = key_ortho(h->screen_w, h->screen_h, KEY_SHIFT_DOWN);
     glUniformMatrix4fv(u_proj, 1, GL_FALSE, side_proj.m);
-    button(down, 0);
+    button(down, SHIFT_ID[1] != NULL || SHIFT_FLASH[1] > 0);
     color(1, 1, 1, 0.92f);
     chevron(down.x + down.w / 2, down.y + down.h / 2 + 4, 22, 0, 1);
   }
