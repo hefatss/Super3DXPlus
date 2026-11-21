@@ -860,6 +860,10 @@ static void draw_record(int label, float label_y, float y, float t) {
   blit(label, rx(522), ty(label_y));
 }
 
+/* The sim's 60 Hz ticks since the HUD was last drawn (hud_draw sets it): the consoles' animations count these, not the draws, or they ran at twice their speed on a
+ * 120 Hz display (the route signs, the rivals' marks, the junction boards, the 10-in-a-row banner). 0 on a frame the sim did not step, 2 after a slow one. */
+static int hud_ticks = 1;
+
 /* ---- the route sign over the car (clSignConsole, cons_g_caution): the sign SAreaData::GetSign
  * gives for the road ahead, at the arcade's (289, 81) 64x64, as big against the screen as
  * there. The red ones and the caution blink in (frames 99..158), the rest stand (0..59). ---- */
@@ -881,7 +885,7 @@ static void draw_sign(const car_race *r) {
     0, 51, 102, 154, 205, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
     0, 43, 85, 128, 171, 213, 255, 255, 255, 255, 255, 255, 255, 255, 255 };
   float a = hud_sign_blinks(sign) ? BLINK[sign_t % 60] / 255.0f : 1.0f;
-  sign_t++;
+  sign_t += hud_ticks;
   const float k = 1.6f; /* the arcade's 640x480 to the 1024x768 screen */
   tint(1, 1, 1, a);
   sprite_k(SPR_SIGN + sign - 1, (289 + 32) * k, (81 + 32) * k, 0, k);
@@ -1595,13 +1599,13 @@ static void draw_junction(const car_state *car) {
   }
   int shown = 0;
   if (s == 1) {
-    if (counter > 0 && --counter == 0) boards = 1, t = 0;
+    if (counter > 0 && (counter -= hud_ticks) <= 0) counter = 0, boards = 1, t = 0;
     shown = boards == 1 ? 1 : 2;
   } else if (counter > 0) {
-    if (--counter == 0) boards = 0;
+    if ((counter -= hud_ticks) <= 0) counter = 0, boards = 0;
     shown = boards == 2 ? 3 : 0;
   }
-  if (ft >= 0 && ++ft > 95) ft = -1;
+  if (ft >= 0 && (ft += hud_ticks) > 95) ft = -1;
   if (ft >= 0 && a_flash >= 0) { /* (the edges' flare across the whole window: a wide one is stretched from the 4:3 layout's middle out to its sides) */
     float sx = (1024.0f + 2.0f * EDGE) / 1024.0f;
     anm_draw_xy(a_flash, (side ? 101 : 1) + (ft < 94 ? ft : 94), 1, 320.0f * (1.0f - sx), 0, sx, 1, NULL, 0);
@@ -1609,7 +1613,8 @@ static void draw_junction(const car_state *car) {
   if (!shown) return;
   if (shown == 2) { /* (the message) */
     anm_swap mes = { anm_sprite(T_JCT_MES), uv(UV_JCT_CHOOSE) };
-    anm_draw_ex(a_msg, t++ % 60, 1, 0, 0, &mes, 1);
+    anm_draw_ex(a_msg, t % 60, 1, 0, 0, &mes, 1);
+    t += hud_ticks;
     return;
   }
   const short *row = NULL;
@@ -1622,7 +1627,7 @@ static void draw_junction(const car_state *car) {
   int f;
   if (shown == 1) f = t < 60 ? t : 60; /* (frames 0..59 bring the boards in, 60 holds; the chosen board's flash is from 61, the right one's from 161: not looped through) */
   else f = (side ? 160 : 60) + (t < 15 ? t : 14);
-  t++;
+  t += hud_ticks;
   anm_draw_ex(a_sel, f, 1, 0, 0, sw, 4);
 }
 static void draw_vs(const car_state *car) {
@@ -1758,14 +1763,14 @@ static void draw_mark(const car_state *car, const rival_mark *m, int lead) {
       /* the mark pulses (cons_g_R frames 0..59 loop: the R swells and fades out, as the menu's chosen item does; 60.. is the still R): it
        * starts again from 0 each time it comes on over the car (off the screen or out of reach), and counts only while it shows */
       if (adv > -200000.0f && adv < 3000.0f) {
-        st->pop = (st->pop + 1) % 60;
+        st->pop = (st->pop + hud_ticks) % 60;
       } else {
         st->pop = 0;
       }
       f = st->pop;
     } else if (m->name && lead) {
       f = MARK_TG[m->mark] + (int)st->phase;
-      st->phase += MARK_SPEED[band];
+      st->phase += MARK_SPEED[band] * (float)hud_ticks;
       if (st->phase >= 120.0f) st->phase = 0;
       sy += 15.0f * scale;
     } else {
@@ -1780,7 +1785,8 @@ static void draw_mark(const car_state *car, const rival_mark *m, int lead) {
     float mx = 640.0f - sx, lo = 320.0f - half_w + R_HALF_W, hi = 320.0f + half_w - R_HALF_W;
     mx = mx < lo ? lo : mx > hi ? hi : mx;
     float scale = (1.5f + 1.0f - fabsf(adv) / 150000.0f) * 0.4f;
-    int f = st->loop[band]++ % (int)MARK_LOOP[band];
+    int f = st->loop[band] % (int)MARK_LOOP[band];
+    st->loop[band] += hud_ticks;
     st->pop = 0;
     if (m->tg) f += MARK_TG[m->mark];
     if (adv > 6000.0f && adv < 150000.0f) {
@@ -1880,7 +1886,7 @@ static void draw_ten_banner(const car_state *car) {
   if (r->ten_sw_name) banner_on = 1;
   if (banner_frame >= BANNER_FRAMES) return;
   int f = banner_frame;
-  if (banner_on) ++banner_frame;
+  if (banner_on) banner_frame += hud_ticks;
   int round = anm_sprite(TEN_BANNER_TEXT + banner_round), name = anm_sprite(TEN_BANNER_TEXT + 32 + banner_chara);
   int t_round = anm_sprite(T_BANNER_ROUND), t_name = anm_sprite(T_BANNER_NAME), t_car = anm_sprite(T_BANNER_CAR);
   anm_swap sw[3] = { { t_round, -1 }, { t_name, -1 }, { t_car, anm_sprite(TEN_FACE[banner_chara][2]) } };
@@ -2301,7 +2307,7 @@ static void draw_ten(const car_state *car) {
   int extend = ten_level >= 10, max = extend ? 31 : 9;
   int round = r->ten_beaten < 0 ? 0 : r->ten_beaten > max ? max : r->ten_beaten;
   if (round != ten_round) {
-    if (ten_round < 0 || ++ten_round_wait > 5) {
+    if (ten_round < 0 || (ten_round_wait += hud_ticks) > 5) {
       if (ten_round >= 0 && round > 0) extend_at = r->total; /* clTimeExtendConsole::set */
       ten_round = round;
       ten_round_wait = 0;
@@ -2838,6 +2844,12 @@ static void draw_consoles(const hud_state *h, const car_state *car, const mat4 *
 }
 
 void hud_draw(const hud_state *h, const car_state *car, const car_input *in, float fps) {
+  {
+    static unsigned last = ~0u;
+    int d = last == ~0u ? 1 : (int)(car->lamp_tick - last); /* (a new race's counter starts over: one) */
+    hud_ticks = d < 0 || d > 8 ? 1 : d;
+    last = car->lamp_tick;
+  }
   ui_w = h->screen_w, ui_h = h->screen_h;
   glUseProgram(prog);
   mat4 proj = screen_ortho(h->screen_w, h->screen_h);
