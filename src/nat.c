@@ -310,12 +310,12 @@ static NAT_THREAD_FN worker(void *arg) {
   char loc[300], path[256], mine[16];
   int ok = 0;
   if (!buf || net_sock_init() != 0) {
-    say(NAT_FAILED, "NO NETWORK");
+    say(NAT_FAILED, "NOT CONNECTED TO A NETWORK");
     free(buf);
     return 0;
   }
   if (local_ip(mine) != 0) snprintf(mine, sizeof mine, "0.0.0.0");
-  say(NAT_WORKING, "ASKING THE ROUTER TO OPEN THE PORT...");
+  say(NAT_WORKING, "SETTING UP YOUR GAME...");
   int sr = ssdp(loc, sizeof loc, mine);
   fprintf(stderr, "nat: ssdp %s %s (local %s)\n", sr == 0 ? "found" : "found nothing", sr == 0 ? loc : "", mine);
   if (sr == 0 && split_url(loc, T.host, sizeof T.host, &T.port, path, sizeof path) == 0 && lan_ip(T.host)) {
@@ -363,12 +363,12 @@ static NAT_THREAD_FN worker(void *arg) {
     if (stun(ip) == 0) snprintf(T.info.ip, sizeof T.info.ip, "%s", ip);
   }
   T.info.cgnat = T.info.ip[0] && private_ip(T.info.ip);
-  if (!T.info.ip[0]) say(NAT_FAILED, "NO INTERNET: ONLY THE SAME NETWORK CAN JOIN");
-  else if (T.info.cgnat) say(NAT_FAILED, "YOUR PROVIDER SHARES ONE ADDRESS: NO ONE OUTSIDE CAN REACH YOU");
-  else if (T.info.mapped) say(NAT_READY, "THE ROUTER OPENED THE PORT BY ITSELF");
+  if (!T.info.ip[0]) say(NAT_FAILED, "NO INTERNET: ONLY PLAYERS ON YOUR WI-FI CAN JOIN");
+  else if (T.info.cgnat) say(NAT_FAILED, "YOUR PROVIDER BLOCKS HOSTING: ONLY YOUR WI-FI CAN JOIN");
+  else if (T.info.mapped) say(NAT_READY, "GAME HOSTED. SHARE THE ROOM CODE WITH YOUR FRIENDS");
   else {
     char s[64];
-    snprintf(s, sizeof s, "PLEASE FORWARD UDP PORT %d ON YOUR ROUTER TO THIS DEVICE TO HOST", T.info.port);
+    snprintf(s, sizeof s, "ONE STEP LEFT: FORWARD UDP PORT %d IN YOUR ROUTER", T.info.port);
     say(NAT_READY, s);
   }
   /* (renewing the lease while the game is hosted) */
@@ -396,9 +396,9 @@ void nat_open(int port) {
   T.info.port = port;
   T.cancel = 0;
   T.have_map = 0;
-  say(NAT_WORKING, "LOOKING FOR THE ROUTER...");
+  say(NAT_WORKING, "SETTING UP YOUR GAME...");
   if (nat_thread_start(&T.th, worker) == 0) T.running = 1;
-  else say(NAT_FAILED, "COULD NOT START");
+  else say(NAT_FAILED, "COULD NOT START HOSTING");
 }
 
 void nat_close(void) {

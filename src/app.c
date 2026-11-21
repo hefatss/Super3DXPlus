@@ -3619,7 +3619,7 @@ static void vs_host_start(int online) {
   vs_off();
   if (vs_host_open(G.vs_id, online) != 0 || net_open("127.0.0.1", vs_host_port(), G.vs_id) != 0) {
     vs_off();
-    snprintf(G.menu.vs.note, sizeof G.menu.vs.note, "COULD NOT HOST: NO FREE PORT (FIREWALL?)");
+    snprintf(G.menu.vs.note, sizeof G.menu.vs.note, "COULD NOT START HOSTING: PORT IN USE OR BLOCKED");
     vs_last_set("COULD NOT HOST: NO FREE PORT");
     return;
   }
@@ -3832,7 +3832,7 @@ static void vs_menu(void) {
         log_mask_ip(tip, shown); /* (a server or a friend's public address stays out of the log) */
         fprintf(stderr, "versus: connecting to %s:%d as %08x\n", shown, tport, G.vs_id);
       } else {
-        snprintf(m->vs.note, sizeof m->vs.note, "NOT AN ADDRESS OR ROOM CODE");
+        snprintf(m->vs.note, sizeof m->vs.note, "THAT IS NOT A VALID ROOM CODE OR ADDRESS");
         vs_last_set("NOT AN ADDRESS OR ROOM CODE");
       }
     }
@@ -3940,9 +3940,11 @@ static void vs_menu(void) {
     vs_last_set("THE HOST LOST CONNECTION");
     return;
   }
-  const char *quiet = m->vs.kind == MENU_VS_NET ? "SERVER UNRESPONSIVE" : "HOST UNRESPONSIVE";
+  /* (not yet in: the host has not answered; in the lobby: it went quiet) */
+  const char *quiet = m->vs.state == MENU_VS_CONNECTING ? (m->vs.kind == MENU_VS_NET ? "NO ANSWER YET: CHECK THE ROOM CODE" : "NO ANSWER FROM THE HOST YET")
+                                                        : "LOST CONTACT WITH THE HOST. WAITING...";
   if (m->vs.state == MENU_VS_CONNECTING) {
-    snprintf(m->vs.note, sizeof m->vs.note, "%s", silent > VS_SILENT ? quiet : "CONNECTING...");
+    snprintf(m->vs.note, sizeof m->vs.note, "%s", silent > VS_SILENT ? quiet : "CONNECTING TO THE HOST...");
     vs_last_set(silent > VS_SILENT ? (m->vs.kind == MENU_VS_NET ? "NO ANSWER (CHECK THE CODE, FIREWALL, ROUTER)" : "NO ANSWER FROM THE HOST (FIREWALL?)")
                                    : "STILL CONNECTING...");
   }
