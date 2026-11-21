@@ -252,7 +252,7 @@ left alone). Each of these is a line with the time in `wheel-diag.txt`, so a rep
 
 ## Window mode (the PC player)
 
-GAME OPTIONS > WINDOW MODE switches between a window and borderless fullscreen; F11 or Alt+Enter does the same at any time. The choice is
+GAME OPTIONS > GRAPHICS > WINDOW MODE switches between a window and borderless fullscreen; F11 or Alt+Enter does the same at any time. The choice is
 the `window` line of the `option` file, so the next start opens the same way; `--fullscreen` on the command line starts fullscreen whatever
 was saved. The row is not shown on the Raspberry Pi (it always runs fullscreen) or in a CRT run.
 

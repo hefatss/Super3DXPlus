@@ -115,6 +115,8 @@ typedef struct {
   int cam_shake; /* the camera shake in tenths 0..10 (CAMERA SHAKE in the game options): 10 is the arcade's own, 0 a steady view */
   int rum_row;  /* the vibration screen's row */
   int disp_row; /* the display options screen's row (MENU_DISPLAY, PC) */
+  int gfx_row;  /* the graphics screen's row (MENU_GRAPHICS) */
+  int fps_row, lock60; /* Android's 60 FPS LOCK row in the graphics screen (fps_row, set by the app), and the switch (saved): asks the system for a 60 Hz screen */
   int net_row, net_ping, net_log, net_act; /* the network options screen (MENU_NETWORK): its row, PING ON THE HUD, DETAILED NET LOG (both saved), and the action it asks of the platform */
   char net_lines[6][72]; /* its connection lines, filled by the app */
   int ten_beep; /* the 10 out run's beep as the rival's line is near (HUD OPTIONS), on by default */
@@ -536,7 +538,7 @@ enum { MENU_MOVIE, MENU_TITLE, MENU_RANKING, MENU_LOGO, MENU_PROLOGUE, MENU_STAR
        MENU_ST_LEVEL, MENU_ST_RIVAL, MENU_PRE, MENU_ST_TUNE, MENU_TEN_COURSE, MENU_TEN_LEVEL,
        MENU_TG_GET, MENU_TG_AERO, MENU_TG_PART, MENU_TG_WEAR, MENU_OPTION, MENU_SAVE, MENU_HAVE, MENU_GARAGE,
        MENU_CARD, MENU_LVUP, MENU_ST_EFF, MENU_TG_WHEEL, MENU_TG_SELECT, MENU_TG_MAKER, MENU_NAME,
-       MENU_TG_VINYL, MENU_VS, MENU_VS_SEL, MENU_VS_AREA, MENU_VS_MATCH, MENU_SHOGO, MENU_VS_STAR, MENU_INFO, MENU_LAYOUT, MENU_POEM, MENU_BONUS, MENU_CARDSET, MENU_BINDINGS, MENU_HUDOPT, MENU_VOLUME, MENU_PORTINFO, MENU_RUMBLE, MENU_MILAGE, MENU_DISPLAY, MENU_NETWORK };
+       MENU_TG_VINYL, MENU_VS, MENU_VS_SEL, MENU_VS_AREA, MENU_VS_MATCH, MENU_SHOGO, MENU_VS_STAR, MENU_INFO, MENU_LAYOUT, MENU_POEM, MENU_BONUS, MENU_CARDSET, MENU_BINDINGS, MENU_HUDOPT, MENU_VOLUME, MENU_PORTINFO, MENU_RUMBLE, MENU_MILAGE, MENU_DISPLAY, MENU_NETWORK, MENU_GRAPHICS };
 enum { MENU_GAME_STORY, MENU_GAME_TEN, MENU_GAME_TA, MENU_GAME_VS };
 
 /* The cars the car select shows in 3D this frame (the carousel, or the colour turntable),

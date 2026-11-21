@@ -2247,9 +2247,9 @@ static void draw_layout(const menu_state *m, int clock, float screen_w, float sc
  * each time (the graphics rows the build offers: Android's, an iPad's resolution). The touch controls are the CONTROLS screen's. ---- */
 static int option_touch(void) { return hud_style() == HUD_STYLE_TOUCH; }
 
-enum { OK_SWITCH, OK_MIP, OK_RES, OK_AA, OK_SUB, OK_INFO, OK_RUMBLE, OK_PCT, OK_WIN, OK_DISPLAY, OK_NET, OK_ACT };
+enum { OK_SWITCH, OK_MIP, OK_RES, OK_AA, OK_SUB, OK_INFO, OK_RUMBLE, OK_PCT, OK_WIN, OK_DISPLAY, OK_NET, OK_ACT, OK_GFX };
 #define IS_RES(r) ((r)->kind == OK_RES || (r)->kind == OK_WIN) /* a choice of two, the value the chip (0 the left) */
-#define IS_SUB(r) ((r)->kind == OK_SUB || (r)->kind == OK_INFO || (r)->kind == OK_RUMBLE || (r)->kind == OK_DISPLAY || (r)->kind == OK_NET || (r)->kind == OK_ACT) /* a row that is a button to another screen */
+#define IS_SUB(r) ((r)->kind == OK_SUB || (r)->kind == OK_INFO || (r)->kind == OK_RUMBLE || (r)->kind == OK_DISPLAY || (r)->kind == OK_NET || (r)->kind == OK_ACT || (r)->kind == OK_GFX) /* a row that is a button to another screen */
 typedef struct { const char *name, *note; int kind; int *v; } orow;
 
 static const char *const MIP_NAME[4] = { "SOFT", "NORMAL", "SHARP", "SHARPER" };
@@ -2272,10 +2272,21 @@ static void optl_chip(const orow *r, int c, float *x, float *w) {
 static int option_rows(menu_state *m, orow r[16]) {
   int n = 0;
   r[n++] = (orow){ "BACK MIRROR", "THE MIRROR SHOWN IN BUMPER CAMERA", OK_SWITCH, &m->bm_on };
-  r[n++] = (orow){ "TEXTURES", "HOW SHARP THE ROAD'S AND THE SCENERY'S TEXTURES STAY IN THE DISTANCE", OK_MIP, &m->mip };
-  r[n++] = (orow){ "REFLECTION", "CAR PAINT AND GLASS REFLECT THEIR SURROUNDINGS, AS IN THE ARCADE", OK_SWITCH, &m->over_on };
   r[n++] = (orow){ "MILEAGE SCREEN", "SHOW THE MILEAGE TALLY AFTER A SINGLE PLAYER GAME", OK_SWITCH, &m->milage_on };
   r[n++] = (orow){ "CAMERA SHAKE", "HOW MUCH THE VIEW SHAKES AT SPEED AND ON ROUGH ROAD. 0% KEEPS IT STEADY", OK_PCT, &m->cam_shake };
+  r[n++] = (orow){ "GRAPHICS", "TEXTURES, REFLECTIONS, RESOLUTION, FRAME RATE AND THE PICTURE", OK_GFX, NULL };
+  r[n++] = (orow){ "VIBRATION", "CONTROLLER RUMBLE: WALL HITS, EXPANSION JOINTS AND TIRE SLIP", OK_RUMBLE, NULL };
+  r[n++] = (orow){ "NETWORK OPTIONS", "TOOLS FOR FIXING VERSUS CONNECTION PROBLEMS", OK_NET, NULL };
+  r[n++] = (orow){ "DEBUG OPTIONS", "ADDITIONAL INFORMATION READOUTS", OK_SUB, NULL };
+  r[n++] = (orow){ "INFORMATION", "ABOUT THIS PORT", OK_INFO, NULL };
+  return n;
+}
+
+/* the graphics screen (MENU_GRAPHICS): what costs the GPU, and how the picture reaches the display */
+static int graphics_rows(menu_state *m, orow r[16]) {
+  int n = 0;
+  r[n++] = (orow){ "TEXTURES", "HOW SHARP THE ROAD'S AND THE SCENERY'S TEXTURES STAY IN THE DISTANCE", OK_MIP, &m->mip };
+  r[n++] = (orow){ "REFLECTION", "CAR PAINT AND GLASS REFLECT THEIR SURROUNDINGS, AS IN THE ARCADE", OK_SWITCH, &m->over_on };
   if (m->hq_rows) {
     r[n++] = (orow){ "HD TEXTURES", "USE THE OPTIONAL UPSCALED TEXTURES", OK_SWITCH, &m->hd_tex };
     r[n++] = (orow){ "WET ROAD", "ADDS SCREENSPACE REFLECTIONS TO THE ROAD SURFACE", OK_SWITCH, &m->wet_on };
@@ -2283,11 +2294,8 @@ static int option_rows(menu_state *m, orow r[16]) {
   }
   if (m->res_row) r[n++] = (orow){ "RESOLUTION", "TAKES EFFECT AT THE NEXT START", OK_RES, &m->hires };
   if (m->win_row) r[n++] = (orow){ "WINDOW MODE", "WINDOWED OR FULLSCREEN (F11 OR ALT+ENTER ANYTIME)", OK_WIN, &m->fullscreen };
-  r[n++] = (orow){ "VIBRATION", "CONTROLLER RUMBLE: WALL HITS, EXPANSION JOINTS AND TIRE SLIP", OK_RUMBLE, NULL };
+  if (m->fps_row) r[n++] = (orow){ "60 FPS LOCK", "ASKS FOR A 60 HZ SCREEN. HELPS ON 90/120 HZ PHONES THAT DROP TO 45 (ANDROID 11+)", OK_SWITCH, &m->lock60 };
   if (m->win_row) r[n++] = (orow){ "DISPLAY OPTIONS", "ADJUST THE PICTURE IF IT LOOKS WASHED OUT", OK_DISPLAY, NULL };
-  r[n++] = (orow){ "NETWORK OPTIONS", "TOOLS FOR FIXING VERSUS CONNECTION PROBLEMS", OK_NET, NULL };
-  r[n++] = (orow){ "DEBUG OPTIONS", "ADDITIONAL INFORMATION READOUTS", OK_SUB, NULL };
-  r[n++] = (orow){ "INFORMATION", "ABOUT THIS PORT", OK_INFO, NULL };
   return n;
 }
 
@@ -2442,6 +2450,50 @@ static void option_back_to(menu_state *m, int kind) {
     if (o[i].kind == kind) m->focus = i;
 }
 
+/* the graphics screen (MENU_GRAPHICS): the game options' GRAPHICS button; its DISPLAY OPTIONS row opens the black level screen, which comes back here */
+static void graphics_enter(menu_state *m) {
+  go(m, MENU_GRAPHICS);
+  m->gfx_row = 0;
+}
+
+static void graphics_back_to(menu_state *m, int kind) { /* (the cursor on the row of the screen just left) */
+  orow o[16];
+  int n = graphics_rows(m, o);
+  graphics_enter(m);
+  for (int i = 0; i < n; ++i)
+    if (o[i].kind == kind) m->gfx_row = i;
+}
+
+static void display_enter(menu_state *m);
+
+static void graphics_step(menu_state *m, const menu_in *in) {
+  if (in->back) {
+    snd_menu(SND_CANCEL);
+    option_back_to(m, OK_GFX);
+    return;
+  }
+  orow r[16];
+  int n = graphics_rows(m, r);
+  if (optl_step(m, r, n, &m->gfx_row, in)) {
+    snd_menu(SND_SELECT);
+    if (m->gfx_row >= 0 && m->gfx_row < n && r[m->gfx_row].kind == OK_DISPLAY) display_enter(m);
+  }
+}
+
+static void draw_graphics(const menu_state *m, int clock, int bars, float screen_w, float screen_h) {
+  const float k = 1.6f;
+  draw_back(ID.bg, clock % 600, 1);
+  anm_draw(ID.line, clock % anm_frames(ID.line), 1);
+  draw_bottom(bars, 1);
+  int tb = draw_title_bar(bars, 9);
+  hud_ui_begin(screen_w, screen_h);
+  if (!tb) hud_ui_text("GRAPHICS", 24.0f * k, 40.0f * k, 4.0f, 1, 1, 1, 1);
+  hud_ui_end();
+  orow r[16];
+  int n = graphics_rows((menu_state *)m, r);
+  draw_optlist(m, r, n, m->gfx_row, optl_dy(n), screen_w, screen_h);
+}
+
 static void rumble_step(menu_state *m, const menu_in *in) {
   if (in->back) {
     snd_menu(SND_CANCEL);
@@ -2481,7 +2533,7 @@ static void display_enter(menu_state *m) {
 static void display_step(menu_state *m, const menu_in *in) {
   if (in->back) {
     snd_menu(SND_CANCEL);
-    option_back_to(m, OK_DISPLAY);
+    graphics_back_to(m, OK_DISPLAY);
     return;
   }
   orow r[4];
@@ -2582,7 +2634,7 @@ static void option_step(menu_state *m, const menu_in *in) {
     int kind = m->focus >= 0 && m->focus < n ? r[m->focus].kind : OK_SUB;
     if (kind == OK_INFO) portinfo_enter(m);
     else if (kind == OK_RUMBLE) rumble_enter(m);
-    else if (kind == OK_DISPLAY) display_enter(m);
+    else if (kind == OK_GFX) graphics_enter(m);
     else if (kind == OK_NET) net_enter(m);
     else hudopt_enter(m);
   }
@@ -10993,6 +11045,11 @@ static int menu_pointer(const menu_state *m, menu_in *in) {
     optl_pointer(m, in, r, net_rows((menu_state *)m, r), NET_DY);
     return 1;
   }
+  if (m->screen == MENU_GRAPHICS) {
+    orow r[16];
+    { int gn = graphics_rows((menu_state *)m, r); optl_pointer(m, in, r, gn, optl_dy(gn)); }
+    return 1;
+  }
   if (m->screen == MENU_BINDINGS && bind_touch(m)) {
     touchctl_pointer(m, in);
     return 1;
@@ -11639,6 +11696,10 @@ static void step(menu_state *m) {
     net_step(m, &in);
     return;
   }
+  if (m->screen == MENU_GRAPHICS) {
+    graphics_step(m, &in);
+    return;
+  }
   if (m->screen == MENU_SETTING) {
     if (m->vs.tuning && m->vs.tune_timer > 0) m->vs.tune_timer--;
     if (setting_step(m, &in)) m->deciding = FADE;
@@ -12145,7 +12206,7 @@ void menu_draw(const menu_state *m, float screen_w, float screen_h, void (*draw3
     bottom_kind = m->card_back == MENU_SETTING ? BK_GC : !cardpages_ok() ? BK_GC : m->card_page == CP_TA ? BK_BP_GC_VS : BK_BP_GC;
     break;
   case MENU_CAR: case MENU_COLOR: case MENU_COURSE: case MENU_BGM: case MENU_TEN_COURSE: case MENU_TEN_LEVEL: case MENU_GARAGE: case MENU_NAME:
-  case MENU_OPTION: case MENU_SAVE: case MENU_BINDINGS: case MENU_HUDOPT: case MENU_VOLUME: case MENU_PORTINFO: case MENU_RUMBLE: case MENU_DISPLAY: case MENU_NETWORK:
+  case MENU_OPTION: case MENU_SAVE: case MENU_BINDINGS: case MENU_HUDOPT: case MENU_VOLUME: case MENU_PORTINFO: case MENU_RUMBLE: case MENU_DISPLAY: case MENU_NETWORK: case MENU_GRAPHICS:
     bottom_kind = BK_HS_BB_GD;
     break;
   default: bottom_kind = BK_NONE; break;
@@ -12335,6 +12396,13 @@ void menu_draw(const menu_state *m, float screen_w, float screen_h, void (*draw3
   if (m->screen == MENU_NETWORK) {
     if (m->t < FADE) fade = (float)(m->t + 1) / FADE;
     draw_net(m, clock, bars, screen_w, screen_h);
+    hud_draw_menu_keys(screen_w, screen_h, m->key_held, 0, 1);
+    anm_fill(0, 0, 0, 1.0f - fade);
+    return;
+  }
+  if (m->screen == MENU_GRAPHICS) {
+    if (m->t < FADE) fade = (float)(m->t + 1) / FADE;
+    draw_graphics(m, clock, bars, screen_w, screen_h);
     hud_draw_menu_keys(screen_w, screen_h, m->key_held, 0, 1);
     anm_fill(0, 0, 0, 1.0f - fade);
     return;

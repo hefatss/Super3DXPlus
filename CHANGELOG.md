@@ -20,7 +20,9 @@ What Super3DX+ adds or changes compared with [Re3DX+](NOTICE.md). Longer explana
 - Special color selection for cars
 - Restored suspension lowering for tuned cars
 - Volume mixer
-- DISPLAY OPTIONS on PC (GAME OPTIONS), with a BLACK LEVEL setting and a bar of greys to judge it by: pulls the blacks down for displays or drivers that show the picture grey and washed out (a limited range signal on a full range monitor, Auto HDR, colour enhancement); 50% undoes a 16-235 limited range
+- GAME OPTIONS has a GRAPHICS sub-menu now: textures, reflection, HD textures, wet road, anti-aliasing, resolution, window mode and DISPLAY OPTIONS moved into it
+- Android: a 60 FPS LOCK (GAME OPTIONS > GRAPHICS) asks the system for a 60 Hz screen, for phones with a 90 or 120 Hz panel whose GPU cannot keep up and drops to 45 fps (issue 32; Android 11 or later)
+- DISPLAY OPTIONS on PC (GRAPHICS), with a BLACK LEVEL setting and a bar of greys to judge it by: pulls the blacks down for displays or drivers that show the picture grey and washed out (a limited range signal on a full range monitor, Auto HDR, colour enhancement); 50% undoes a 16-235 limited range
 - Option to skip the intro cutscenes, and restored missing intro cutscenes
 - Information screen
 

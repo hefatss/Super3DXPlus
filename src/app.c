@@ -1068,6 +1068,8 @@ static int options_load(void) {
     G.menu.key_dx[g] = dx < -2000 || dx > 2000 ? 0 : dx;
     G.menu.key_dy[g] = dy < -2000 || dy > 2000 ? 0 : dy;
   }
+  int fl60 = 0; /* (Android's 60 FPS LOCK, the last line; a file from before it keeps it off) */
+  if (n >= 3 && fscanf(f, " lock60 %d", &fl60) == 1) G.menu.lock60 = fl60 != 0;
   fclose(f);
   if (n < 3) return 0;
   G.menu.hires = hires != 0;
@@ -1106,6 +1108,7 @@ static void options_save(void) {
   for (int e = 0; e < 7; ++e) now[51 + e * 3] = G.menu.el_k[e], now[52 + e * 3] = G.menu.el_dx[e], now[53 + e * 3] = G.menu.el_dy[e];
   for (int g = 3; g < HUD_KEY_GROUPS; ++g) /* (the shift keys' own, after them) */
     now[72 + (g - 3) * 3] = G.menu.key_k[g], now[73 + (g - 3) * 3] = G.menu.key_dx[g], now[74 + (g - 3) * 3] = G.menu.key_dy[g];
+  now[78] = G.menu.lock60;
   if (G.options_global && !memcmp(now, last, sizeof now)) return;
   char path[1100];
   snprintf(path, sizeof path, "%s/option", G.save_dir);
@@ -1138,6 +1141,7 @@ static void options_save(void) {
   fprintf(f, "keys2");
   for (int i = 72; i < 78; ++i) fprintf(f, " %d", now[i]);
   fprintf(f, "\n");
+  fprintf(f, "lock60 %d\n", now[78]);
   fclose(f);
   memcpy(last, now, sizeof last);
   G.options_global = 1;
@@ -1825,6 +1829,8 @@ void app_set_fullscreen(int on) {
 void app_toggle_fullscreen(void) { app_set_fullscreen(!G.menu.fullscreen); }
 void app_window_row(int on) { G.menu.win_row = on != 0; }
 void app_firewall_row(int on) { G.menu.fw_row = on != 0; }
+void app_frame_lock_row(int on) { G.menu.fps_row = on != 0; }
+int app_frame_lock(void) { return G.menu.fps_row && G.menu.lock60; }
 int app_black_level(void) { return G.menu.black_lv; }
 /* the pad's rumble now (haptic.c): nothing outside a running race */
 void app_rumble(float *low, float *high) {

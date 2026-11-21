@@ -12,6 +12,7 @@
 #include <aaudio/AAudio.h>
 #include <android/log.h>
 #include <android/native_window_jni.h>
+#include <dlfcn.h>
 #include <jni.h>
 #include <math.h>
 #include <pthread.h>
@@ -260,6 +261,29 @@ static void take_window(void) {
 }
 #endif
 
+/* The 60 FPS LOCK: the game's clock is 60 Hz, and a 90 or 120 Hz panel that cannot hold a frame per refresh falls to half of it (45 on a 90 Hz
+ * one). ANativeWindow_setFrameRate (Android 11) asks the system to run the screen at 60 Hz for this window, and 0 hands the choice back. Looked
+ * up at run time: older systems do not have it, and the lock then does nothing. */
+static void frame_lock_apply(void) {
+  static int applied = -1;
+  static ANativeWindow *win;
+  int want = app_frame_lock();
+  if (!A.window || (want == applied && win == A.window)) return;
+  typedef int32_t (*set_rate_fn)(ANativeWindow *, float, int8_t);
+  static set_rate_fn set_rate;
+  static int looked;
+  if (!looked) {
+    looked = 1;
+    void *lib = dlopen("libandroid.so", RTLD_NOW);
+    set_rate = (set_rate_fn)dlsym(lib ? lib : RTLD_DEFAULT, "ANativeWindow_setFrameRate");
+    if (!set_rate) fprintf(stderr, "frame rate: this Android has no ANativeWindow_setFrameRate, the 60 FPS LOCK does nothing\n");
+  }
+  applied = want, win = A.window;
+  if (!set_rate) return;
+  int32_t r = set_rate(A.window, want ? 60.0f : 0.0f, want ? 1 /* fixed source */ : 0 /* default */);
+  fprintf(stderr, "frame rate: %s (setFrameRate %d)\n", want ? "asked the system for 60 Hz" : "left to the system", r);
+}
+
 static int start_game(void) {
   fprintf(stderr, "start_game\n");
   app_save_dir(A.save_dir);
@@ -268,6 +292,7 @@ static int start_game(void) {
   A.touch_edge = ((float)A.fb_w * A.touch_k - 1024.0f) * 0.5f;
   if (A.touch_edge < 1.0f) A.touch_edge = 0;
   app_console();
+  app_frame_lock_row(1);
   /* the keys a little smaller than the iPhone's 1.3, under the meters' plate and the shift gate */
   app_wide(A.touch_edge, A.touch_edge > 0 ? 1.2f : 1.0f);
   if (app_init(A.data_dir, A.fb_w, A.fb_h, 1024, 768) != 0) {
@@ -415,6 +440,7 @@ static void *game(void *arg) {
       app_key(APP_KEY_ACCEL, !getenv("MT3DX_AUTODRIVE_KMH") || app_speed_kmh() < (float)atof(getenv("MT3DX_AUTODRIVE_KMH")));
     }
     app_frame(dt);
+    frame_lock_apply();
     sync_movie();
     pad_rumble_frame();
     if (app_exit_requested() && !A.exit_sent) { /* the main menu's EXIT: MainActivity closes the app */
