@@ -55,6 +55,8 @@ void app_firewall_row(int on);
 int app_smooth(void);
 /* The screen's refresh in Hz where the platform knows it (the PC player, which shows its menus at 60 on a faster screen): smooth motion is chosen by it */
 void app_display_hz(float hz);
+/* 1: smooth motion in every race whatever the option says (the player cannot show the game at 60 on this screen) */
+void app_force_smooth(int on);
 /* Android's 60 FPS LOCK (graphics screen): app_frame_lock_row(1) gives it the row; app_frame_lock() is 1 while it is on, the platform's to ask the system for a 60 Hz screen */
 void app_frame_lock_row(int on);
 int app_frame_lock(void);
