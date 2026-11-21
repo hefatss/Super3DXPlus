@@ -358,8 +358,11 @@ static void frame_lock_wait(void) {
     begun = last;
   }
   if (k < 2) return;
-  /* wait until the refresh k after the one the last frame began at (late: at once) */
-  long want = begun + (long)(period * k), at = 0, prev = 0;
+  /* Wait for the refresh nearest the next game step's time, a 60th of a second after the last one's: that is k refreshes after the last frame, and one
+   * fewer now and then when the panel is a little under k * 60 Hz (the Thor's 120 Hz is 118.4), which keeps the game at 60 steps a second, as the host's
+   * is, in place of 59.2 and a step added every second or so to keep up. A late frame starts the clock again from where it is. */
+  begun += 1000000000L / 60;
+  long want = begun, at = 0, prev = 0;
   for (int tries = 0; tries < 12; ++tries) {
     at = next_vsync();
     /* (two refreshes in a row tell the display's rate as it is now: the system may have changed it since it was measured) */
@@ -373,7 +376,7 @@ static void frame_lock_wait(void) {
     prev = at;
     if (!at || at >= want - (long)(period * 0.5)) break;
   }
-  if (at) begun = at;
+  if (at && at > begun + (long)(period * 2.5)) begun = at; /* (late by more than two refreshes) */
 }
 
 static int start_game(void) {
