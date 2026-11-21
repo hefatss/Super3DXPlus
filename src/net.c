@@ -381,6 +381,10 @@ int net_take_go(net_go *go) {
   memset(N.rx_any, 0, sizeof N.rx_any);
   for (int k = 0; k < CAR_LINK_MACHINES; ++k) N.rx_ping[k] = -1;
   tot_n = tot_lost = tot_late = 0, tot_gap_max = 0; /* (the statistics of this race) */
+  /* The clock comparison starts over with the race. It kept the last race's: this machine's last frame (tx_count, 12008 at the end of a 3-minute race) against the host's new
+   * race's first packets (frame 0) made it "12007 frames ahead", the versus' clock correction dropped every step, and a machine that takes no step sends no packet that would
+   * set tx_count right: the race stood still at its start on both machines, for ever (whenever the host's first packet came before this machine's own). */
+  memset(St, 0, sizeof St), memset(ema_n, 0, sizeof ema_n), memset(ema, 0, sizeof ema), tx_count = 0;
   return 1;
 }
 
