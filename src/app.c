@@ -269,6 +269,7 @@ static struct {
   int interp;          /* smooth motion for this race: the arcade's steps run on the clock's time and the picture is blended between the last two (app.c car_pose) */
   float interp_acc;    /* the time since the last step, in steps (0..1): how far the picture is from the previous state to the current one */
   float interp_alpha;  /* what the render uses this frame (1: the current state as it is) */
+  float interp_use;    /* the time this frame moved the picture by (frame_time) */
   char error[512];
   /* frame timing of the race, for hunting hitches: perf.log in the data folder */
   FILE *perf;
@@ -5009,20 +5010,11 @@ int app_smooth(void) { return G.interp; }
  * refresh is steady: a frame moves the picture by one refresh, or by as many as went by when it was late; the clock's time is kept for the long run by taking up the
  * difference a little at a time. */
 static float frame_time(float dt) {
-  static float period, drift;
-  if (G.race_frames == 0) period = disp_dt, drift = 0;
-  if (dt < 0.75f * period) period = dt; /* (a quicker rhythm than thought) */
-  else if (dt < 1.35f * period) period += (dt - period) * 0.1f;
-  float n = floorf(dt / period + 0.5f);
-  n = n < 1.0f ? 1.0f : n > 4.0f ? 4.0f : n;
-  float use = n * period;
-  drift += dt - use;
-  float corr = drift * 0.05f;
-  float lim = 0.15f * period;
-  corr = corr > lim ? lim : corr < -lim ? -lim : corr;
-  drift -= corr;
-  if (drift > 0.1f || drift < -0.1f) drift = 0; /* (a hitch's long frame: not made up for) */
-  return use + corr;
+  static float f;
+  if (G.race_frames == 0 || f <= 0.0f) f = dt;
+  f += (dt - f) * 0.2f; /* (a filter, not a quantizer: the sum of the times stays the clock's, a frame's odd length is spread over the next few) */
+  G.interp_use = f;
+  return f;
 }
 
 void app_frame(float dt) {
@@ -5722,7 +5714,7 @@ void app_frame(float dt) {
       float eye[3]; /* (the eye the drawn view matrix really has, and how far it is from the drawn car: it must not change between frames) */
       for (int j = 0; j < 3; ++j) eye[j] = -(c->cam_view[4 * j] * c->cam_view[12] + c->cam_view[4 * j + 1] * c->cam_view[13] + c->cam_view[4 * j + 2] * c->cam_view[14]);
       float dx = eye[0] - c->body[12], dy = eye[1] - c->body[13], dz = eye[2] - c->body[14];
-      fprintf(stderr, "interp: dt %.2f ms steps %d alpha %.3f smooth %d car %.3f %.3f cam %.3f %.3f eyedist %.3f\n", (double)dt * 1e3, steps, (double)G.interp_alpha, G.interp, (double)c->pos[0], (double)c->pos[2], (double)c->cam_pos[0], (double)c->cam_pos[2], (double)sqrtf(dx * dx + dy * dy + dz * dz));
+      fprintf(stderr, "interp: dt %.2f ms use %.2f steps %d alpha %.3f smooth %d car %.3f %.3f cam %.3f %.3f eyedist %.3f\n", (double)dt * 1e3, (double)G.interp_use * 1e3, steps, (double)G.interp_alpha, G.interp, (double)c->pos[0], (double)c->pos[2], (double)c->cam_pos[0], (double)c->cam_pos[2], (double)sqrtf(dx * dx + dy * dy + dz * dz));
     }
   }
   if (pose_swapped) pose_set(&G.car, &pose_real), pose_swapped = 0, spark_blend(NULL, 1.0f); /* (the real state again) */
@@ -5734,7 +5726,8 @@ void app_frame(float dt) {
   }
   perf_frame(dt, steps, t1 - t0, now_ms() - t1, warmed, &G.rp);
   static int frame;
-  if (frame < 10 || frame % 150 == 0)
+  /* (glGetError waits for the GPU to catch up: 13 ms of a frame on a PC, every 150 frames; only when logging is asked for) */
+  if (getenv("MT3DX_LOG") && (frame < 10 || frame % 150 == 0))
     fprintf(stderr, "frame %d dt %.3f draws %d tris %d car %.1f %.1f %.1f cam %.1f %.1f %.1f traffic %d kmh %.0f blur %.3f err 0x%x\n",
             frame, dt, G.rp.draws, G.rp.triangles, c->pos[0], c->pos[1], c->pos[2], c->cam_pos[0], c->cam_pos[1],
             c->cam_pos[2], c->n_traffic, car_kmh(c), c->cam_blur, glGetError());
