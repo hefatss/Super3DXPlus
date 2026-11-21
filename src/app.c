@@ -5258,8 +5258,12 @@ void app_frame(float dt) {
     for (int i = 0; i < steps && G.movie_len > 0; ++i) {
       /* its show's frame first: while that holds the movie (clEffectTable +0x1e0), the movie's
        * time stands and its picture with it (clGraphicFreezeCallback) */
-      if (hud_demo_step()) continue;
+      if (hud_demo_step()) {
+        if (G.interp) pose_get(&G.car, &pose_prev), pose_prev_ok = 1; /* (it stands still: nothing to blend towards) */
+        continue;
+      }
       if (ending && G.movie_frame + 1.0f >= G.movie_len) break; /* (held at its last frame) */
+      if (G.interp && i == steps - 1) pose_get(&G.car, &pose_prev), pose_prev_ok = 1; /* (smooth motion: the state the movie's last step starts from) */
       G.movie_frame += 1.0f;
       if (G.movie_frame >= G.movie_len) movie_close();
       else car_movie_update(&G.car, G.movie_frame);
@@ -5279,7 +5283,6 @@ void app_frame(float dt) {
     }
   }
   steps = vs_pace(steps);
-  if (G.interp && (G.paused || movie || frozen)) G.interp_acc = 0; /* (nothing runs: the blend stands where the last step left it) */
   /* A story race's goal (issue 11, the reference video's 351 s): the screen negated and the game held while the rival's last line is said (the win's or the
    * loss's, with its face), the cut-in's own steps run on; then the picture is as it was and the goal camera plays on to the result. */
   {
@@ -5489,7 +5492,7 @@ void app_frame(float dt) {
   double t1 = now_ms();
 
   /* smooth motion: the poses drawn are the blend between the last two steps (put back below) */
-  G.interp_alpha = G.interp && pose_prev_ok && !G.paused && !movie && !frozen && !G.goal_hold ? G.interp_acc : 1.0f;
+  G.interp_alpha = G.interp && pose_prev_ok && !G.paused && !frozen && !G.goal_hold ? G.interp_acc : 1.0f; /* (a movie's cameras and cars too: its cuts are jumps, left as they are) */
   if (G.interp_alpha < 1.0f) {
     car_pose blended;
     pose_get(&G.car, &pose_real);
