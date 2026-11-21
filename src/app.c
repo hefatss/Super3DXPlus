@@ -366,6 +366,8 @@ static struct {
   int vs_left_n, vs_left_t, vs_forfeit; /* how many left; frames of the latest one's notice; the round ended by all the others leaving */
   char vs_left_msg[96];
 } G;
+/* whether the camera the picture is drawn from is the chase one (the view the last arcade step read: G.camera is the player's press, which a frame in two (120 Hz) comes before the step that moves the camera, and the car, its halos and the reflections were drawn for the new view from the old one) */
+#define CAM_CHASE() (G.car.view == CAR_VIEW_BEHIND)
 
 static void vs_ip_load(void);
 
@@ -4728,7 +4730,7 @@ static void draw_race_cars(const car_state *c, const mat4 *vp, const float *eye_
   rp->over_glass = 0;
   /* the cars' environment map is the frame itself, as it stands before the player's own car (the arcade's upper-screen comment: "or it would see
    * itself"): the street, the rivals, the traffic; the own car then reads it. (With render_hq it is the last frame, render_blur_begin.) */
-  if (own && pass == 0) G.over_drawn = !G.no_over && G.menu.over_on && (G.camera == 0 || movie) && render_screen_env(G.scene_w, G.scene_h);
+  if (own && pass == 0) G.over_drawn = !G.no_over && G.menu.over_on && (CAM_CHASE() || movie) && render_screen_env(G.scene_w, G.scene_h);
   if (own) {
     float range = rp->range[WPK_GROUND];
     rp->range[WPK_GROUND] = 1e9f;
@@ -4855,7 +4857,7 @@ static void draw_shadows(const mat4 *vp, const mat4 *car_m) {
   mat4 mvp[1 + CAR_RIVALS + CAR_TRAFFIC];
   int n = 0;
   const car_state *c = &G.car;
-  if (G.camera == 0 && G.race_model) {
+  if (CAM_CHASE() && G.race_model) {
     s[n] = G.aero_set ? &G.aero : G.race_model;
     shadow_of(vp, car_m->m, &mvp[n++]);
   }
@@ -4905,6 +4907,7 @@ static int arcade_steps(float dt) {
  * everything else the render reads is the step's own. A pose that jumps (a traffic car's slot taken by another, a view change) is not blended. ---- */
 typedef struct {
   float body[16], cam_view[16], mirror_view[16], pos[3], cam_pos[3];
+  int view; /* (the camera view it was seen from: a change is a cut, not a blend) */
   int n_traffic;
   struct { int model; float body[16]; } traffic[CAR_TRAFFIC];
   int rival_shown[CAR_RIVALS];
@@ -4913,7 +4916,7 @@ typedef struct {
 
 static void pose_get(const car_state *c, car_pose *p) {
   memcpy(p->body, c->body, sizeof p->body), memcpy(p->cam_view, c->cam_view, sizeof p->cam_view), memcpy(p->mirror_view, c->mirror_view, sizeof p->mirror_view);
-  memcpy(p->pos, c->pos, sizeof p->pos), memcpy(p->cam_pos, c->cam_pos, sizeof p->cam_pos);
+  memcpy(p->pos, c->pos, sizeof p->pos), memcpy(p->cam_pos, c->cam_pos, sizeof p->cam_pos), p->view = c->view;
   p->n_traffic = c->n_traffic < CAR_TRAFFIC ? c->n_traffic : CAR_TRAFFIC;
   for (int i = 0; i < p->n_traffic; ++i) p->traffic[i].model = c->traffic[i].model, memcpy(p->traffic[i].body, c->traffic[i].body, sizeof p->traffic[i].body);
   memcpy(p->rival_shown, c->rival_shown, sizeof p->rival_shown), memcpy(p->rival_body, c->rival_body, sizeof p->rival_body);
@@ -4965,6 +4968,26 @@ static void view_blend(float *out, const float *a, const float *b, float t) {
   for (int j = 0; j < 3; ++j) e[j] = ea[j] + (eb[j] - ea[j]) * t;
   for (int c = 0; c < 3; ++c)
     for (int r = 0; r < 3; ++r) out[4 * c + r] = a[4 * c + r] + (b[4 * c + r] - a[4 * c + r]) * t;
+  /* The blend of two rotations is a little short of one (by about the turn between the steps squared over 8: a tight bend's 3 degrees a step is 3e-4, and with the eye
+   * tens of thousands of units from the origin, that is a metre where anything reads the eye back from the view as R-transposed times t, so the picture pulsed with
+   * the blend): the rows made square and unit again. */
+  {
+    float r0[3] = { out[0], out[4], out[8] }, r1[3] = { out[1], out[5], out[9] }, r2[3] = { out[2], out[6], out[10] };
+    float n2 = sqrtf(r2[0] * r2[0] + r2[1] * r2[1] + r2[2] * r2[2]);
+    if (n2 > 1e-6f) {
+      for (int k = 0; k < 3; ++k) r2[k] /= n2;
+      float d = r0[0] * r2[0] + r0[1] * r2[1] + r0[2] * r2[2];
+      for (int k = 0; k < 3; ++k) r0[k] -= d * r2[k];
+      float n0 = sqrtf(r0[0] * r0[0] + r0[1] * r0[1] + r0[2] * r0[2]);
+      if (n0 > 1e-6f) {
+        for (int k = 0; k < 3; ++k) r0[k] /= n0;
+        float c1[3] = { r2[1] * r0[2] - r2[2] * r0[1], r2[2] * r0[0] - r2[0] * r0[2], r2[0] * r0[1] - r2[1] * r0[0] };
+        float s = c1[0] * r1[0] + c1[1] * r1[1] + c1[2] * r1[2] < 0.0f ? -1.0f : 1.0f;
+        for (int k = 0; k < 3; ++k) r1[k] = s * c1[k];
+        for (int k = 0; k < 3; ++k) out[4 * k] = r0[k], out[4 * k + 1] = r1[k], out[4 * k + 2] = r2[k];
+      }
+    }
+  }
   for (int i = 0; i < 3; ++i) out[12 + i] = -(out[i] * e[0] + out[4 + i] * e[1] + out[8 + i] * e[2]);
 }
 
@@ -4979,6 +5002,10 @@ static void pose_blend(car_pose *out, const car_pose *a, const car_pose *b, floa
   *out = *b;
   mat_blend(out->body, a->body, b->body, t), view_blend(out->cam_view, a->cam_view, b->cam_view, t), view_blend(out->mirror_view, a->mirror_view, b->mirror_view, t);
   vec_blend(out->pos, a->pos, b->pos, t), vec_blend(out->cam_pos, a->cam_pos, b->cam_pos, t);
+  if (a->view != b->view) { /* (the roof view to the chase view or back: a cut, all of it as the new step has it: the camera cut and the car left half a step behind it showed as a slide) */
+    *out = *b;
+    return;
+  }
   for (int i = 0; i < b->n_traffic && i < a->n_traffic; ++i)
     if (a->traffic[i].model == b->traffic[i].model) mat_blend(out->traffic[i].body, a->traffic[i].body, b->traffic[i].body, t);
   for (int k = 0; k < CAR_RIVALS; ++k) {
@@ -5222,6 +5249,11 @@ void app_frame(float dt) {
     static int roof_done;
     if (getenv("MT3DX_ROOF") && !roof_done && app_racing()) roof_done = 1, G.camera = 1, car_view(CAR_VIEW_ROOF);
   }
+  { /* test: MT3DX_CAMTOGGLE=n presses the camera key at the race's frame n */
+    static int tg = -2;
+    if (tg == -2) tg = getenv("MT3DX_CAMTOGGLE") ? atoi(getenv("MT3DX_CAMTOGGLE")) : -1;
+    if (tg >= 0 && app_racing() && G.race_frames == tg) G.hud.camera_pressed++;
+  }
   if (G.hud.camera_pressed) {
     G.camera ^= 1;
     car_view(G.camera ? CAR_VIEW_ROOF : CAR_VIEW_BEHIND);
@@ -5307,7 +5339,7 @@ void app_frame(float dt) {
   pend_up |= in.shift_up, pend_down |= in.shift_down;
   if (in.gear) pend_gear = in.gear;
   in.shift_up = pend_up, in.shift_down = pend_down, in.gear = pend_gear;
-  { static int ev = -2; if (ev == -2) ev = getenv("MT3DX_SHAKE") ? atoi(getenv("MT3DX_SHAKE")) : -1; car_shake(ev >= 0 ? ev : G.menu.cam_shake); } /* (MT3DX_SHAKE=n: this run's camera shake, whatever the option says) */
+  { static int ev = -2; if (ev == -2) ev = getenv("MT3DX_SHAKE") ? atoi(getenv("MT3DX_SHAKE")) : -1; int sh = ev >= 0 ? ev : G.menu.cam_shake; if (ev < 0 && G.interp && G.camera && sh > 1) sh = 1; /* (the roof view's eye jolts a metre forward and back over the road's bumps; shown smoothly at 120 Hz that is a wobble that makes people sick, where 60 frames a second hides it: in smooth motion its jolts are nearly all taken out, the option taking the rest) */ car_shake(sh), car_shake_slow(ev < 0 && G.interp && G.camera); } /* (MT3DX_SHAKE=n: this run's camera shake, whatever the option says) */
   if (G.flash_on && (!G.vs_race || (G.car.lamp_tick - G.flash_t0) / 6 >= 6)) G.flash_on = 0; /* (three blinks of 0.2 s: off 0.1 s, on 0.1 s) */
   in.flash = G.flash_on && !G.paused && ((G.car.lamp_tick - G.flash_t0) / 6) % 2 == 0;
   for (int i = 0; i < steps; ++i) {
@@ -5610,7 +5642,7 @@ void app_frame(float dt) {
     render_blend_pass(pass == WPK_BLEND);
     wpk_draw(&G.track, &vp, &ident, c->cam_pos, pass, &G.rp);
     wpk_draw(&G.arrows[G.track_zone], &vp, &ident, c->cam_pos, pass, &G.rp);
-    draw_race_cars(c, &vp, c->cam_pos, pass, movie, G.camera == 0 || movie, G.phone ? PHONE_TRAFFIC_FAR : 0.0f, &G.rp);
+    draw_race_cars(c, &vp, c->cam_pos, pass, movie, CAM_CHASE() || movie, G.phone ? PHONE_TRAFFIC_FAR : 0.0f, &G.rp);
     if (pass == WPK_CUTOUT) draw_shadows(&vp, &car_m);
     SEG_END(SEG_OPAQUE + pass);
   }
@@ -5634,14 +5666,14 @@ void app_frame(float dt) {
   /* the headlights' flares (clCarLampHalo, visible with SInfoCarDisp +0x146 as the pools: the movies' cars always, so the
    * story's cut scenes show them though the player's own pool is left out): what a camera in front of a car sees */
   if (!getenv("WMMT_NO_HALO")) {
-    if ((G.camera == 0 || movie) && (movie || c->spot)) lights_draw_halos(&proj, &view, c->body, G.race_pack, G.aero_set, &G.rp);
+    if ((CAM_CHASE() || movie) && (movie || c->spot)) lights_draw_halos(&proj, &view, c->body, G.race_pack, G.aero_set, &G.rp);
     for (int i = 0; i < CAR_RIVALS; ++i)
       if (c->rival_shown[i] && (movie || c->rival_spot[i]) && (movie ? G.movie_model[i] : G.rival_model[i]) && (movie || i < G.n_rival))
         lights_draw_halos(&proj, &view, c->rival_body[i], movie ? G.movie_pack[i] : G.rival_pack[i], G.vs_race ? G.rival_dress[i].aero : 0, &G.rp);
   }
   /* the car's under neon (clCarDisp::update: clNeon::setPosture with the car's frame at its
    * hubs' mean height) */
-  if ((G.camera == 0 || movie) && G.menu.neon[G.menu.maker][menu_slot(&G.menu)]) {
+  if ((CAM_CHASE() || movie) && G.menu.neon[G.menu.maker][menu_slot(&G.menu)]) {
     mat4 f = car_m;
     float hub = 0.25f * (c->tyre[0][13] + c->tyre[1][13] + c->tyre[2][13] + c->tyre[3][13]);
     for (int j = 0; j < 3; ++j) f.m[12 + j] += hub * f.m[4 + j];
@@ -5734,13 +5766,13 @@ void app_frame(float dt) {
             c->cam_blur, G.over_draws, G.menu.sharp_on && !G.sharp_rest);
   }
   { /* test: MT3DX_INTERP_LOG=n logs n frames' timing and the drawn car's place, from the race's frame 120 (how evenly it moves) */
-    static int lg = -1;
-    if (lg < 0) lg = getenv("MT3DX_INTERP_LOG") ? atoi(getenv("MT3DX_INTERP_LOG")) : 0;
-    if (lg > 0 && G.race_frames > 120 && G.race_frames <= 120 + lg) {
+    static int lg = -1, lg_from = 120;
+    if (lg < 0) lg = getenv("MT3DX_INTERP_LOG") ? atoi(getenv("MT3DX_INTERP_LOG")) : 0, lg_from = getenv("MT3DX_INTERP_FROM") ? atoi(getenv("MT3DX_INTERP_FROM")) : 120;
+    if (lg > 0 && G.race_frames > lg_from && G.race_frames <= lg_from + lg) {
       float eye[3]; /* (the eye the drawn view matrix really has, and how far it is from the drawn car: it must not change between frames) */
       for (int j = 0; j < 3; ++j) eye[j] = -(c->cam_view[4 * j] * c->cam_view[12] + c->cam_view[4 * j + 1] * c->cam_view[13] + c->cam_view[4 * j + 2] * c->cam_view[14]);
       float dx = eye[0] - c->body[12], dy = eye[1] - c->body[13], dz = eye[2] - c->body[14];
-      fprintf(stderr, "interp: dt %.2f ms use %.2f steps %d alpha %.3f smooth %d car %.3f %.3f cam %.3f %.3f eyedist %.3f\n", (double)dt * 1e3, (double)G.interp_use * 1e3, steps, (double)G.interp_alpha, G.interp, (double)c->pos[0], (double)c->pos[2], (double)c->cam_pos[0], (double)c->cam_pos[2], (double)sqrtf(dx * dx + dy * dy + dz * dz));
+      fprintf(stderr, "interp: f %d dt %.2f ms use %.2f steps %d alpha %.3f smooth %d car %.3f %.3f cam %.3f %.3f eyedist %.3f fwdy %.4f rightY %.4f eyedy %.4f eye %.3f %.3f fwd %.5f %.5f\n", G.race_frames, (double)dt * 1e3, (double)G.interp_use * 1e3, steps, (double)G.interp_alpha, G.interp, (double)c->pos[0], (double)c->pos[2], (double)c->cam_pos[0], (double)c->cam_pos[2], (double)sqrtf(dx * dx + dy * dy + dz * dz), (double)c->cam_view[6], (double)c->cam_view[1], (double)dy, (double)eye[0], (double)eye[2], (double)c->cam_view[2], (double)c->cam_view[10]);
     }
   }
   if (getenv("MT3DX_GPUTIME") && G.race_frames % 30 == 0) { /* test: how long the GPU needs for this frame (glFinish), twice a second, with the speed and the radial blur */

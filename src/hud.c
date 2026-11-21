@@ -1477,6 +1477,10 @@ static void draw_vs_last(const car_state *car, int story) {
     for (int i = 0; i < vs_n; ++i)
       if (r->vs_on[i] && r->remain + r->vs_gap[i] < lead) lead = r->remain + r->vs_gap[i];
     first = r->vs_rank <= 0;
+    if (r->vs_rank >= 2) { /* (only the one right behind the leader is called on; the rest see nothing) */
+      last_t0 = -1, last_alarm = -1;
+      return;
+    }
   }
   if (lead < 0.0f) lead = 0.0f;
   if (lead > (float)LAST_METRES || r->remain <= 0.0f) {

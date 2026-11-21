@@ -914,9 +914,17 @@ static struct {
 } SK;
 
 void car_shake(int tenths) { shake_tenths = tenths < 0 ? 0 : tenths > 10 ? 10 : tenths; }
+static int shake_slow;
+void car_shake_slow(int on) { shake_slow = on; } /* (smooth motion's first-person view: the camera's offset and axes follow over about half a second, not a sixth) */
 
-static void shake_rot(float s, float cs, const float in[3], float out[3]) { /* about the up axis: into the car's frame (s, cs of +yaw) */
-  out[0] = in[0] * cs - in[2] * s, out[1] = in[1], out[2] = in[0] * s + in[2] * cs;
+/* the frame the filter works in (rows: its three axes in the world): the car's turn about the up axis, so a corner is not a shake; or, for smooth motion's first-person view,
+ * the car's body itself (its pitch and roll too), so the eye is held on the car and only slowly leaves it */
+static float SF[3][3];
+static void shake_to(const float in[3], float out[3]) {
+  for (int k = 0; k < 3; ++k) out[k] = SF[k][0] * in[0] + SF[k][1] * in[1] + SF[k][2] * in[2];
+}
+static void shake_from(const float in[3], float out[3]) {
+  for (int k = 0; k < 3; ++k) out[k] = SF[0][k] * in[0] + SF[1][k] * in[1] + SF[2][k] * in[2];
 }
 
 static void shake_filter(car_state *c) {
@@ -926,22 +934,32 @@ static void shake_filter(car_state *c) {
   }
   float V[16];
   memcpy(V, c->cam_view, sizeof V);
-  const float sy = sinf(c->yaw), cy = cosf(c->yaw);
+  if (shake_slow) {
+    const float *B = c->body;
+    for (int k = 0; k < 3; ++k) SF[k][0] = B[4 * k], SF[k][1] = B[4 * k + 1], SF[k][2] = B[4 * k + 2];
+  } else {
+    const float sy = sinf(c->yaw), cy = cosf(c->yaw);
+    const float F[3][3] = { { cy, 0.0f, -sy }, { 0.0f, 1.0f, 0.0f }, { sy, 0.0f, cy } };
+    memcpy(SF, F, sizeof SF);
+  }
   float cam[3] = { c->cam_pos[0] - c->pos[0], c->cam_pos[1] - c->pos[1], c->cam_pos[2] - c->pos[2] }, off[3], ax[3][3];
-  shake_rot(sy, cy, cam, off);
+  shake_to(cam, off);
   for (int r = 0; r < 3; ++r) {
     const float w[3] = { V[r], V[4 + r], V[8 + r] };
-    shake_rot(sy, cy, w, ax[r]);
+    shake_to(w, ax[r]);
   }
   float d = 0, len = 1e-3f;
   for (int k = 0; k < 3; ++k) d += (off[k] - SK.off[k]) * (off[k] - SK.off[k]), len += SK.off[k] * SK.off[k];
   float fwd = ax[2][0] * SK.ax[2][0] + ax[2][1] * SK.ax[2][1] + ax[2][2] * SK.ax[2][2];
-  if (!SK.on || SK.view != P.view || d > 0.35f * 0.35f * len || fwd < 0.95f) { /* (a cut, a new view, the first frame: no smoothing across it) */
+  (void)len;
+  /* (a cut, a new view, the first frame: no smoothing across it. A cut is metres: the road's jolts move the roof view's eye a metre or more in a few steps, and a limit
+   * relative to the offset (about 3 units) made the filter give up exactly there) */
+  if (!SK.on || SK.view != P.view || d > 40.0f * 40.0f || fwd < 0.95f) {
     SK.on = 1, SK.view = P.view;
     memcpy(SK.off, off, sizeof off), memcpy(SK.ax, ax, sizeof ax);
     return;
   }
-  const float a = 0.1f, s = shake_tenths / 10.0f; /* (a step is 1/60 s: 0.1 of the way is a time constant of about 0.16 s) */
+  const float a = shake_slow ? 0.03f : 0.1f, s = shake_tenths / 10.0f; /* (a step is 1/60 s: 0.1 of the way is a time constant of about 0.16 s) */
   float o[3], x[3][3];
   for (int k = 0; k < 3; ++k) {
     SK.off[k] += (off[k] - SK.off[k]) * a;
@@ -962,8 +980,8 @@ static void shake_filter(car_state *c) {
   x[1][2] = x[2][0] * x[0][1] - x[2][1] * x[0][0];
   /* back to the world: the inverse turn */
   float p[3], R[3][3];
-  shake_rot(-sy, cy, o, p);
-  for (int r = 0; r < 3; ++r) shake_rot(-sy, cy, x[r], R[r]);
+  shake_from(o, p);
+  for (int r = 0; r < 3; ++r) shake_from(x[r], R[r]);
   for (int r = 0; r < 3; ++r) V[r] = R[r][0], V[4 + r] = R[r][1], V[8 + r] = R[r][2];
   for (int k = 0; k < 3; ++k) c->cam_pos[k] = c->pos[k] + p[k];
   for (int r = 0; r < 3; ++r) V[12 + r] = -(R[r][0] * c->cam_pos[0] + R[r][1] * c->cam_pos[1] + R[r][2] * c->cam_pos[2]);

@@ -354,6 +354,7 @@ int car_title_list(const unsigned char *data, int n, int out[3]);
 void car_view(int view);
 /* how much of the camera's shake shows, in tenths 0..10 (10 the arcade's own, less is a camera smoothed over the car's own frame, 0 steady) */
 void car_shake(int tenths);
+void car_shake_slow(int on);
 /* One arcade frame (1/60 s). */
 void car_update(car_state *c, const car_input *in);
 float car_kmh(const car_state *c);
