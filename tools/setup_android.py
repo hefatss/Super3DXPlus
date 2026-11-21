@@ -147,10 +147,20 @@ def _sdk_ok(sdk):
 
 
 def find_sdk():
-    cands = [os.environ.get("ANDROID_HOME", ""), os.environ.get("ANDROID_SDK_ROOT", ""), os.path.join(TOOLS, "android-sdk"),
+    cands = [os.environ.get("ANDROID_HOME", ""), os.environ.get("ANDROID_SDK_ROOT", ""), os.path.join(TOOLS, "android-sdk"), _sdk_home(),
              os.path.join(os.environ.get("LOCALAPPDATA", ""), "Android", "Sdk"), os.path.expanduser("~/Android/Sdk"), os.path.expanduser("~/Library/Android/sdk"),
              "/opt/android-sdk"]
     return next((c for c in cands if c and _sdk_ok(c)), None)
+
+
+def _sdk_home():
+    """where the Android SDK this setup downloads goes: the project's .super3dx folder, but on Windows, in a short place when that folder is already deep (a game
+    unzipped inside Downloads\\some folder\\the same folder again): the SDK's own files go 150 characters down, and Windows stops at 260 (issue 34)"""
+    home = os.path.join(TOOLS, "android-sdk")
+    if WIN and len(home) > 70:
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        home = os.path.join(base, "Super3DX", "android-sdk")
+    return home
 
 
 def _cmdline_tools(sdk, jdk):
@@ -175,7 +185,8 @@ def _cmdline_tools(sdk, jdk):
                     sha = next(c.text for c in comp if c.tag.endswith("checksum"))
                     z = os.path.join(TOOLS, url)
                     _download(REPO_BASE + url, z, sha, "sha1", "the Android command-line tools")
-                    tmp = os.path.join(TOOLS, "cmdline-tools.tmp")
+                    tmp = os.path.join(os.path.dirname(sdk), "cmdline-tools.tmp")  # (beside the SDK: as short as it is)
+                    os.makedirs(os.path.dirname(sdk), exist_ok=True)
                     _extract(z, tmp)
                     os.makedirs(os.path.join(sdk, "cmdline-tools"), exist_ok=True)
                     shutil.rmtree(os.path.join(sdk, "cmdline-tools", "latest"), ignore_errors=True)
@@ -203,7 +214,7 @@ def ensure_sdk(jdk):
     if sdk:
         say("Android SDK: " + sdk)
         return sdk
-    sdk = os.path.join(TOOLS, "android-sdk")
+    sdk = _sdk_home()
     say("\nThe Android build tools were not found. The setup can download them into this project's .super3dx folder:")
     say("the Android SDK build tools, platform and NDK (the C compiler for Android): about 3 GB to download, 4 GB on disk, free of charge.")
     say("Using them means accepting Google's Android SDK licence terms (%s)." % LICENSES)
