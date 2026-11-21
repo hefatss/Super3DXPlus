@@ -4941,7 +4941,13 @@ void app_frame(float dt) {
   anm_trim();
   if (dt > 0.1f) dt = 0.1f;
   if (getenv("MT3DX_FAKE_DT")) dt = (float)atof(getenv("MT3DX_FAKE_DT")); /* test: the time of a faster display's frames (1/120: the game must run at its speed, not twice it) */
-  if (dt > 0) G.fps += (1.0f / dt - G.fps) * 0.05f;
+  { /* the frames over the last half second (an average of 1 / dt reads high when the frames' lengths differ, as a 120 Hz panel's under the 60 FPS LOCK do: 62 for a true 60) */
+    static float span;
+    static int count;
+    span += dt, ++count;
+    if (span >= 0.5f) G.fps = (float)count / span, span = 0, count = 0;
+    else if (G.fps <= 0) G.fps = 1.0f / (dt > 0 ? dt : 1.0f / 60.0f);
+  }
   wpk_ao(G.ao_test >= 0 ? G.ao_test : G.menu.ao_on);
 #ifdef WMMT_EGL
   /* test: the versus stars screen for "stars change [wins]" once the car or game mode select is up */
