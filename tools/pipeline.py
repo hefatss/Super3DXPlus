@@ -19,6 +19,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -42,13 +43,41 @@ def _has_files(path):
     return False
 
 
+def _view_dir(name):
+    """Where the dump's view `name` is made: build/<name>, or, where that folder's drive cannot hold symbolic links (an external drive
+    formatted exFAT, FAT32 or NTFS, mounted on Linux or macOS: issue 39), a folder in the system's temporary folder, which can. Windows
+    falls back to junctions by itself. SUPER3DX_VIEW_DIR names a folder to use instead (its subfolder `name`)."""
+    base = os.path.join(ROOT, "build")
+    if os.environ.get("SUPER3DX_VIEW_DIR"):
+        return os.path.join(os.path.abspath(os.environ["SUPER3DX_VIEW_DIR"]), name)
+    if platform.system() == "Windows":
+        return os.path.join(base, name)
+    os.makedirs(base, exist_ok=True)
+    probe = os.path.join(base, ".linkprobe-%d" % os.getpid())
+    try:
+        os.symlink(base, probe, target_is_directory=True)
+        os.symlink("main", probe + "-f")
+        return os.path.join(base, name)
+    except OSError as e:
+        alt = os.path.join(tempfile.gettempdir(), "super3dx-%s-%s" % (os.environ.get("USER") or os.environ.get("USERNAME") or "user", name))
+        print("note: %s cannot hold symbolic links (%s): the dump's view goes to %s instead" % (base, e, alt))
+        return alt
+    finally:
+        for p in (probe, probe + "-f"):
+            if os.path.lexists(p):
+                os.remove(p)
+
+
 def _link_dir(target, link):
     """a directory link: a symbolic link, or on Windows (where those need a privilege) a junction"""
     try:
         os.symlink(target, link, target_is_directory=True)
-    except (OSError, NotImplementedError):
+    except (OSError, NotImplementedError) as e:
         if platform.system() != "Windows":
-            raise
+            sys.exit("could not link %s to %s (%s)\n  the folder %s exists: %s, the folder %s exists: %s\n"
+                     "  If these are on an external drive, its file system may not allow symbolic links or may have gone away: set SUPER3DX_VIEW_DIR=/some/folder/on/your/own/drive "
+                     "and run the setup again, and tell us the drive's file system (`findmnt -T %s`)."
+                     % (link, target, e, target, os.path.isdir(target), os.path.dirname(link), os.path.isdir(os.path.dirname(link)), target))
         subprocess.run(["cmd", "/c", "mklink", "/J", link, target], check=True, stdout=subprocess.DEVNULL)
 
 
@@ -147,7 +176,7 @@ def gen(arcade, phys):
     for need in ("main", "data"):
         if not os.path.exists(os.path.join(real, need)):
             sys.exit("%s has no %s: it must be a dump of the game with `main` and `data/`" % (real, need))
-    view = os.path.join(ROOT, "build", "arcade-view-gen")
+    view = _view_dir("arcade-view-gen")
     arcade_view(real, view)
     main = os.path.join(view, "main")
     d = os.path.join(view, "data")
@@ -427,7 +456,7 @@ def convert(arcade, media, only, keep_going):
         sys.exit("%s has no main and data/" % real)
     if not os.path.isfile(os.path.join(ROOT, "src", "phys", "phys_rc.c")):
         sys.exit("run `python tools/pipeline.py gen %s --phys` first" % arcade)
-    view = os.path.join(ROOT, "build", "arcade-view")
+    view = _view_dir("arcade-view")
     lang = arcade_view(real, view)
     ctx = Ctx(real, view, real, lang, media)
     os.makedirs(os.path.join(ROOT, "data"), exist_ok=True)
