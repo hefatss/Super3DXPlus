@@ -233,8 +233,6 @@ static struct {
   float mini_from[2][3];         /* the camera and aim it moves from */
   int mini_move, mini_frame;
   car_state car;
-  car_state car_prev; /* the state a step ago, for the render's interpolation (car_alpha) */
-  float car_alpha;    /* the render's interpolation into this frame's car state, 0..1 (arcade_alpha) */
   hud_state hud;
   menu_state menu;
   int in_menu; /* the front end is up; the race starts once a course is chosen */
@@ -268,6 +266,9 @@ static struct {
   int fb_w, fb_h;
   int camera; /* 0 the arcade's view behind the car, 1 its roof view */
   float fps;
+  int interp;          /* smooth motion for this race: the arcade's steps run on the clock's time and the picture is blended between the last two (app.c car_pose) */
+  float interp_acc;    /* the time since the last step, in steps (0..1): how far the picture is from the previous state to the current one */
+  float interp_alpha;  /* what the render uses this frame (1: the current state as it is) */
   char error[512];
   /* frame timing of the race, for hunting hitches: perf.log in the data folder */
   FILE *perf;
@@ -1070,6 +1071,8 @@ static int options_load(void) {
   }
   int fl60 = 0; /* (Android's 60 FPS LOCK, the last line; a file from before it keeps it off) */
   if (n >= 3 && fscanf(f, " lock60 %d", &fl60) == 1) G.menu.lock60 = fl60 != 0;
+  int sm = 1; /* (SMOOTH MOTION, after it: on unless the file says off) */
+  if (n >= 3 && fscanf(f, " smooth %d", &sm) == 1) G.menu.smooth_on = sm != 0;
   fclose(f);
   if (n < 3) return 0;
   G.menu.hires = hires != 0;
@@ -1108,7 +1111,7 @@ static void options_save(void) {
   for (int e = 0; e < 7; ++e) now[51 + e * 3] = G.menu.el_k[e], now[52 + e * 3] = G.menu.el_dx[e], now[53 + e * 3] = G.menu.el_dy[e];
   for (int g = 3; g < HUD_KEY_GROUPS; ++g) /* (the shift keys' own, after them) */
     now[72 + (g - 3) * 3] = G.menu.key_k[g], now[73 + (g - 3) * 3] = G.menu.key_dx[g], now[74 + (g - 3) * 3] = G.menu.key_dy[g];
-  now[78] = G.menu.lock60;
+  now[78] = G.menu.lock60, now[79] = G.menu.smooth_on;
   if (G.options_global && !memcmp(now, last, sizeof now)) return;
   char path[1100];
   snprintf(path, sizeof path, "%s/option", G.save_dir);
@@ -1142,6 +1145,7 @@ static void options_save(void) {
   for (int i = 72; i < 78; ++i) fprintf(f, " %d", now[i]);
   fprintf(f, "\n");
   fprintf(f, "lock60 %d\n", now[78]);
+  fprintf(f, "smooth %d\n", now[79]);
   fclose(f);
   memcpy(last, now, sizeof last);
   G.options_global = 1;
@@ -3424,11 +3428,23 @@ static int vs_pace(int steps) {
     frames = vs_corr_ahead = vs_corr_behind = 0;
   }
   double a = err < 0 ? -err : err;
-  if (a < 1.5 || since < (a > 6.0 ? 1 : 8)) return steps;
+  if (a < (G.interp ? 6.0 : 1.5) || since < (a > 6.0 ? 1 : 8)) return steps; /* (smooth motion follows the host by the clock's pace, vs_rate; whole steps only when far off) */
   since = 0;
   if (err > 0 && steps > 0) steps--, vs_corr_ahead++;
   else if (err < 0) steps++, vs_corr_behind++;
   return steps;
+}
+
+/* Smooth motion's way to follow the host's clock: this machine's own runs a little fast or slow (up to 3 %, the error over 2.5 s) in place of a step dropped or
+ * run twice, which the picture shows as a jump. */
+static float vs_rate(void) {
+  if (!G.interp || !G.vs_race || G.vs_go.pcb == 0 || G.menu.finish) return 1.0f;
+  int ok;
+  double err = net_clock_ahead_frames(0, &ok);
+  if (!ok) return 1.0f;
+  double r = err / 150.0;
+  r = r > 0.03 ? 0.03 : r < -0.03 ? -0.03 : r;
+  return (float)(1.0 - r);
 }
 
 static void vs_link_send(const unsigned char *p, int len, void *ctx) { (void)ctx; net_race_send(p, len); }
@@ -4833,10 +4849,11 @@ static void draw_backmirror(const car_state *c, int movie) {
 }
 
 /* the player's car's and the traffic's shadows, onto what the opaque passes drew */
-static void draw_shadows(const mat4 *vp, const mat4 *car_m, const car_state *c) {
+static void draw_shadows(const mat4 *vp, const mat4 *car_m) {
   const wpk_scene *s[2 + CAR_TRAFFIC];
   mat4 mvp[1 + CAR_RIVALS + CAR_TRAFFIC];
   int n = 0;
+  const car_state *c = &G.car;
   if (G.camera == 0 && G.race_model) {
     s[n] = G.aero_set ? &G.aero : G.race_model;
     shadow_of(vp, car_m->m, &mvp[n++]);
@@ -4861,67 +4878,105 @@ static void eye_in(const mat4 *m, const float *p, float *out) {
   for (int j = 0; j < 3; ++j) out[j] = r[0] * m->m[4 * j] + r[1] * m->m[4 * j + 1] + r[2] * m->m[4 * j + 2];
 }
 
-/* The arcade frames to run for this display frame (dt: the time since the last). The sim is fixed at 60 Hz whatever the display does: `dt` goes into
- * an accumulator and each whole 1/60 s in it is a step, so a 30 Hz display runs 2, a 90 or 120 Hz phone 1 or 2 (and now and then none), and the game
- * keeps its own speed. The fraction left over (`arcade_alpha`) says how far this frame is into the last step: the render interpolates between the
- * car's state after the previous step and after the last one by `arcade_alpha`, so 40 to 59 fps (where an integer rounding used to run the sim slow:
- * one step a frame under 60 Hz, slow-motion) stays smooth and real-time too. */
-static float arcade_alpha; /* 0..1 of the way from the last step's state to the one before it (the render's interpolation) */
+/* The arcade frames to run for this display frame (dt: the time since the last). A 60 Hz display runs one a vsync (dt rounded: the vsyncs that went
+ * by, so a late frame catches up and an early timestamp does not hitch); a faster one (a 90 or 120 Hz phone) would run the game too fast at one a frame,
+ * so there the time goes into an accumulator and a frame in 2 (or so) runs none. `fast_display` says which, for the callers that must not force a step. */
 static int fast_display;
-/* this frame's car as the render sees it: `G.car_prev` lerped to `G.car` by `G.car_alpha` (car_interp), written each race frame before drawing */
-static car_state render_car;
+static float disp_dt = 1.0f / 60.0f; /* the display frames' average length, s */
 static int arcade_steps(float dt) {
   static float acc;
+  float avg = disp_dt; /* (app_frame keeps it, menus' frames too) */
+  fast_display = avg < 0.9f / 60.0f;
+  if (!fast_display) {
+    acc = 0;
+    return (int)(dt * 60.0f + 0.5f);
+  }
   acc += dt * 60.0f;
-  if (acc > 4.0f) acc = 4.0f; /* (a long stall catches up four frames, no more) */
-  int n = (int)acc;
+  int n = (int)(acc + 0.15f);
   acc -= (float)n;
-  arcade_alpha = acc;
-  fast_display = 0; /* (nothing forces a step now: the accumulator runs them all) */
   return n;
 }
 
-/* The render's car state: `cur` (this frame's, after its steps) everywhere but the transforms, which are lerped from `prev` (a step ago) by
- * alpha, so the picture moves the steps' 60 Hz apart smoothly at whatever the display's rate is (a 40 to 59 fps one above all, where 60 Hz
- * steps at a lower draw rate used to look like slow motion). The gameplay's numbers (speed, rpm, race, effects) are `cur` untouched. */
-static void lerp_mat16(float *o, const float *p, const float *q, float a) {
-  for (int k = 0; k < 16; ++k) o[k] = p[k] + (q[k] - p[k]) * a;
+/* ---- Smooth motion. The arcade's physics step 60 times a second, and a display of another rate (120 Hz, a 59.7 Hz phone, a versus client held to a host's
+ * clock) showed the steps unevenly: a frame in 2 with none, now and then one with two. With smooth motion the steps run on the clock's time (an
+ * accumulator) and what is drawn is the car's, the camera's and the other cars' pose blended between the last two steps by how far the clock is past
+ * the previous one: the picture moves evenly whatever the display does, a frame behind the steps (16 ms). Only the poses are blended (the arrays below);
+ * everything else the render reads is the step's own. A pose that jumps (a traffic car's slot taken by another, a view change) is not blended. ---- */
+typedef struct {
+  float body[16], cam_view[16], mirror_view[16], pos[3], cam_pos[3];
+  int n_traffic;
+  struct { int model; float body[16]; } traffic[CAR_TRAFFIC];
+  int rival_shown[CAR_RIVALS];
+  float rival_body[CAR_RIVALS][16], tyre[4][16], rival_tyre[CAR_RIVALS][4][16];
+} car_pose;
+
+static void pose_get(const car_state *c, car_pose *p) {
+  memcpy(p->body, c->body, sizeof p->body), memcpy(p->cam_view, c->cam_view, sizeof p->cam_view), memcpy(p->mirror_view, c->mirror_view, sizeof p->mirror_view);
+  memcpy(p->pos, c->pos, sizeof p->pos), memcpy(p->cam_pos, c->cam_pos, sizeof p->cam_pos);
+  p->n_traffic = c->n_traffic < CAR_TRAFFIC ? c->n_traffic : CAR_TRAFFIC;
+  for (int i = 0; i < p->n_traffic; ++i) p->traffic[i].model = c->traffic[i].model, memcpy(p->traffic[i].body, c->traffic[i].body, sizeof p->traffic[i].body);
+  memcpy(p->rival_shown, c->rival_shown, sizeof p->rival_shown), memcpy(p->rival_body, c->rival_body, sizeof p->rival_body);
+  memcpy(p->tyre, c->tyre, sizeof p->tyre), memcpy(p->rival_tyre, c->rival_tyre, sizeof p->rival_tyre);
 }
-static void car_interp(car_state *o, const car_state *prev, const car_state *cur, float alpha) {
-  float a = alpha < 0.0f ? 0.0f : alpha > 1.0f ? 1.0f : alpha;
-  if (a <= 0.0f) { *o = *cur; return; }
-  *o = *cur;
-  lerp_mat16(o->body, prev->body, cur->body, a);
-  for (int k = 0; k < 3; ++k) o->pos[k] = prev->pos[k] + (cur->pos[k] - prev->pos[k]) * a;
-  o->yaw = prev->yaw + (cur->yaw - prev->yaw) * a;
-  o->pitch = prev->pitch + (cur->pitch - prev->pitch) * a;
-  o->roll = prev->roll + (cur->roll - prev->roll) * a;
-  for (int q = 0; q < 4; ++q) {
-    lerp_mat16(o->tyre[q], prev->tyre[q], cur->tyre[q], a);
-    o->tyre_rot[q] = prev->tyre_rot[q] + (cur->tyre_rot[q] - prev->tyre_rot[q]) * a;
-  }
-  for (int i = 0; i < CAR_RIVALS; ++i) {
-    /* (a rival that shows this frame but not the one a step ago is at its present place, not sliding in from the last one it did show) */
-    if (cur->rival_shown[i] && prev->rival_shown[i]) {
-      lerp_mat16(o->rival_body[i], prev->rival_body[i], cur->rival_body[i], a);
-      for (int q = 0; q < 4; ++q) {
-        lerp_mat16(o->rival_tyre[i][q], prev->rival_tyre[i][q], cur->rival_tyre[i][q], a);
-        o->rival_tyre_rot[i][q] = prev->rival_tyre_rot[i][q] + (cur->rival_tyre_rot[i][q] - prev->rival_tyre_rot[i][q]) * a;
-      }
-    }
-  }
-  for (int i = 0; i < cur->n_traffic && i < prev->n_traffic; ++i) {
-    /* (the same traffic car, by model and where it stood: a slot that changed hands this step does not slide) */
-    const car_traffic *tp = &prev->traffic[i], *tc = &cur->traffic[i];
-    int same = tp->model == tc->model && tp->body[12] == tc->body[12] && tp->body[14] == tc->body[14];
-    lerp_mat16(o->traffic[i].body, tp->body, tc->body, same ? a : 1.0f);
-  }
-  for (int k = 0; k < 16; ++k) o->cam_view[k] = prev->cam_view[k] + (cur->cam_view[k] - prev->cam_view[k]) * a;
-  for (int k = 0; k < 3; ++k) o->cam_pos[k] = prev->cam_pos[k] + (cur->cam_pos[k] - prev->cam_pos[k]) * a;
-  o->cam_fov = prev->cam_fov + (cur->cam_fov - prev->cam_fov) * a;
-  o->cam_near = prev->cam_near + (cur->cam_near - prev->cam_near) * a;
-  o->cam_blur = prev->cam_blur + (cur->cam_blur - prev->cam_blur) * a;
+
+static void pose_set(car_state *c, const car_pose *p) {
+  memcpy(c->body, p->body, sizeof p->body), memcpy(c->cam_view, p->cam_view, sizeof p->cam_view), memcpy(c->mirror_view, p->mirror_view, sizeof p->mirror_view);
+  memcpy(c->pos, p->pos, sizeof p->pos), memcpy(c->cam_pos, p->cam_pos, sizeof p->cam_pos);
+  for (int i = 0; i < p->n_traffic; ++i) memcpy(c->traffic[i].body, p->traffic[i].body, sizeof p->traffic[i].body);
+  memcpy(c->rival_body, p->rival_body, sizeof p->rival_body);
+  memcpy(c->tyre, p->tyre, sizeof p->tyre), memcpy(c->rival_tyre, p->rival_tyre, sizeof p->rival_tyre);
 }
+
+/* a 4x4 (GL column-major, translation in 12..14) between two steps; a move or a turn no step makes is a jump: the later one as it is */
+static void mat_blend(float *out, const float *a, const float *b, float t) {
+  float dx = b[12] - a[12], dy = b[13] - a[13], dz = b[14] - a[14], rot = 0.0f;
+  for (int i = 0; i < 11; ++i) {
+    float d = fabsf(b[i] - a[i]);
+    if (d > rot) rot = d;
+  }
+  if (dx * dx + dy * dy + dz * dz > 6400.0f /* 8 m */ || rot > 0.7f) {
+    memcpy(out, b, 16 * sizeof *out);
+    return;
+  }
+  for (int i = 0; i < 16; ++i) out[i] = a[i] + (b[i] - a[i]) * t;
+}
+
+static void vec_blend(float *out, const float *a, const float *b, float t) {
+  float dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+  if (dx * dx + dy * dy + dz * dz > 6400.0f) memcpy(out, b, 3 * sizeof *out);
+  else for (int i = 0; i < 3; ++i) out[i] = a[i] + (b[i] - a[i]) * t;
+}
+
+/* the pose t of the way from a to b (the same shapes) */
+static void pose_blend(car_pose *out, const car_pose *a, const car_pose *b, float t) {
+  *out = *b;
+  mat_blend(out->body, a->body, b->body, t), mat_blend(out->cam_view, a->cam_view, b->cam_view, t), mat_blend(out->mirror_view, a->mirror_view, b->mirror_view, t);
+  vec_blend(out->pos, a->pos, b->pos, t), vec_blend(out->cam_pos, a->cam_pos, b->cam_pos, t);
+  for (int i = 0; i < b->n_traffic && i < a->n_traffic; ++i)
+    if (a->traffic[i].model == b->traffic[i].model) mat_blend(out->traffic[i].body, a->traffic[i].body, b->traffic[i].body, t);
+  for (int k = 0; k < CAR_RIVALS; ++k) {
+    if (!a->rival_shown[k] || !b->rival_shown[k]) continue;
+    mat_blend(out->rival_body[k], a->rival_body[k], b->rival_body[k], t);
+    for (int w = 0; w < 4; ++w) mat_blend(out->rival_tyre[k][w], a->rival_tyre[k][w], b->rival_tyre[k][w], t);
+  }
+  for (int w = 0; w < 4; ++w) mat_blend(out->tyre[w], a->tyre[w], b->tyre[w], t);
+}
+
+static car_pose pose_prev, pose_real; /* the state before the last step; the real one while the blended one is drawn */
+static int pose_prev_ok, pose_swapped;
+
+/* whether this race is drawn smooth: asked for (MT3DX_INTERP=1 or 0 to force), else on a display that is not 60 Hz (a 120 Hz one, a 90 Hz one) and in a versus
+ * (where the machines' clocks are held together and the corrections must not show) */
+static int want_smooth(void) {
+  static int env = -2;
+  if (env == -2) env = getenv("MT3DX_INTERP") ? atoi(getenv("MT3DX_INTERP")) : -1;
+  if (env >= 0) return env;
+  if (!G.menu.smooth_on) return 0; /* (GAME OPTIONS > GRAPHICS > SMOOTH MOTION off) */
+  float hz = disp_dt > 0 ? 1.0f / disp_dt : 60.0f;
+  return fabsf(hz - 60.0f) > 3.0f || G.vs_race;
+}
+
+int app_smooth(void) { return G.interp; }
 
 void app_frame(float dt) {
   net_log_force(G.menu.net_log);
@@ -4941,6 +4996,7 @@ void app_frame(float dt) {
   anm_trim();
   if (dt > 0.1f) dt = 0.1f;
   if (getenv("MT3DX_FAKE_DT")) dt = (float)atof(getenv("MT3DX_FAKE_DT")); /* test: the time of a faster display's frames (1/120: the game must run at its speed, not twice it) */
+  if (dt > 0) disp_dt += (dt - disp_dt) * 0.05f;
   { /* the frames over the last half second (an average of 1 / dt reads high when the frames' lengths differ, as a 120 Hz panel's under the 60 FPS LOCK do: 62 for a true 60) */
     static float span;
     static int count;
@@ -4963,6 +5019,7 @@ void app_frame(float dt) {
   }
 #endif
   if (G.in_menu) {
+    G.interp = 0; /* (the menus run on the arcade's 60 Hz as they are) */
     menu_frame(dt, frame_start);
     perf_menu(dt, now_ms() - frame_start);
     return;
@@ -5115,18 +5172,26 @@ void app_frame(float dt) {
     garage_save();
     G.hud.trans_pressed = 0;
   }
-  /* the sim's fixed 60 Hz: `dt` feeds the accumulator (arcade_steps), and the render shows the
-   * car interpolated between the last two steps (car_alpha), so it is right at 30, 40 to 59, 60,
-   * 90 or 120 fps alike. */
+  /* One arcade frame per display frame: dt comes from vsync-aligned timestamps, so
+   * rounding it counts the vsyncs that went by. (An accumulator drifting around 1/60 s now
+   * and then ran no step one frame and two the next, a visible hitch.) */
   double t0 = now_ms();
-  int steps = arcade_steps(dt);
+  if (G.race_frames == 0) G.interp = want_smooth() && !ending, G.interp_acc = 0, pose_prev_ok = 0; /* (a race is drawn smooth or not from its first frame to its last) */
+  int steps;
+  if (G.interp) { /* smooth motion: the steps on the clock's time, the picture blended between the last two (a versus client's clock a little fast or slow to follow the host's) */
+    G.interp_acc += dt * 60.0f * vs_rate();
+    steps = (int)G.interp_acc;
+    G.interp_acc -= (float)steps;
+    if (steps > 4) steps = 4, G.interp_acc = 0; /* (after a hitch: no catching up for ever) */
+    fast_display = 1;
+  } else {
+    steps = arcade_steps(dt);
+  }
   /* the first frames' dt holds the race start and its first draw, not driving time */
   if ((steps < 1 && !fast_display) || G.race_frames < 2) steps = 1;
   if (G.paused && !G.vs_race) steps = 0; /* a versus runs on with the others under it */
   G.car.lamp_tick += (unsigned)steps;
   if (G.period_in > 0) G.period_in -= steps;
-  G.car_alpha = arcade_alpha; /* this frame's place into the last step, for the render's interpolation */
-  G.car_prev = G.car;         /* (a fallback: no step below, e.g. a frozen or paused race, leaves the render still) */
   if (movie) { /* clRaceThread::race: the movie's frames, then the race */
     for (int i = 0; i < steps && G.movie_len > 0; ++i) {
       /* its show's frame first: while that holds the movie (clEffectTable +0x1e0), the movie's
@@ -5152,6 +5217,7 @@ void app_frame(float dt) {
     }
   }
   steps = vs_pace(steps);
+  if (G.interp && (G.paused || movie || frozen)) G.interp_acc = 0; /* (nothing runs: the blend stands where the last step left it) */
   /* A story race's goal (issue 11, the reference video's 351 s): the screen negated and the game held while the rival's last line is said (the win's or the
    * loss's, with its face), the cut-in's own steps run on; then the picture is as it was and the goal camera plays on to the result. */
   {
@@ -5180,7 +5246,7 @@ void app_frame(float dt) {
   if (G.flash_on && (!G.vs_race || (G.car.lamp_tick - G.flash_t0) / 6 >= 6)) G.flash_on = 0; /* (three blinks of 0.2 s: off 0.1 s, on 0.1 s) */
   in.flash = G.flash_on && !G.paused && ((G.car.lamp_tick - G.flash_t0) / 6) % 2 == 0;
   for (int i = 0; i < steps; ++i) {
-    if (i == steps - 1) G.car_prev = G.car; /* (the state the render interpolates from: a step ago) */
+    if (G.interp && i == steps - 1) pose_get(&G.car, &pose_prev), pose_prev_ok = 1; /* (the state the last step starts from) */
     if (G.ten_white && ++G.ten_white > 1 + TEN_WHITE_HOLD + TEN_WHITE_FADE) G.ten_white = 0;
     car_update(&G.car, &in);
     pend_up = pend_down = pend_gear = 0;
@@ -5360,9 +5426,17 @@ void app_frame(float dt) {
   }
   double t1 = now_ms();
 
-  /* (the render's car state: the transforms lerped between a step ago and this one, the gameplay numbers this frame's) */
-  car_interp(&render_car, &G.car_prev, &G.car, G.car_alpha);
-  draw_backmirror(&render_car, movie);
+  /* smooth motion: the poses drawn are the blend between the last two steps (put back below) */
+  G.interp_alpha = G.interp && pose_prev_ok && !G.paused && !movie && !frozen && !G.goal_hold ? G.interp_acc : 1.0f;
+  if (G.interp_alpha < 1.0f) {
+    car_pose blended;
+    pose_get(&G.car, &pose_real);
+    pose_blend(&blended, &pose_prev, &pose_real, G.interp_alpha);
+    pose_set(&G.car, &blended);
+    pose_swapped = 1;
+  }
+
+  draw_backmirror(&G.car, movie);
 
   /* render: into the radial blur's texture while the camera asks for it (or the sharpening) */
   int sharp = G.menu.sharp_on && !G.no_sharp;
@@ -5370,7 +5444,7 @@ void app_frame(float dt) {
   else if (G.sharp_rest > 0) G.sharp_rest--;
   if (sharp && G.sharp_rest > 0) G.sharp_rested++;
   render_sharpen(sharp && !G.sharp_rest ? SHARP_AMOUNT : 0.0f, sharp);
-  int blurred = render_blur_begin(G.phone ? 0.0f : render_car.cam_blur, G.fb_w, G.fb_h);
+  int blurred = render_blur_begin(G.phone ? 0.0f : G.car.cam_blur, G.fb_w, G.fb_h);
   int scene_w = G.fb_w, scene_h = G.fb_h;
   if (blurred) render_blur_size(&scene_w, &scene_h);
   G.scene_w = scene_w, G.scene_h = scene_h;
@@ -5380,7 +5454,7 @@ void app_frame(float dt) {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
   /* the arcade's own camera: fixed to the car, with its sway */
-  const car_state *c = &render_car;
+  const car_state *c = &G.car;
   float aspect = (float)G.fb_w / (float)G.fb_h;
   /* the arcade's view across 4:3; a wider screen sees more at the sides */
   float fovy = 2.0f * atanf(tanf(c->cam_fov * 0.5f) / (4.0f / 3.0f));
@@ -5465,7 +5539,7 @@ void app_frame(float dt) {
     wpk_draw(&G.track, &vp, &ident, c->cam_pos, pass, &G.rp);
     wpk_draw(&G.arrows[G.track_zone], &vp, &ident, c->cam_pos, pass, &G.rp);
     draw_race_cars(c, &vp, c->cam_pos, pass, movie, G.camera == 0 || movie, G.phone ? PHONE_TRAFFIC_FAR : 0.0f, &G.rp);
-    if (pass == WPK_CUTOUT) draw_shadows(&vp, &car_m, &render_car);
+    if (pass == WPK_CUTOUT) draw_shadows(&vp, &car_m);
     SEG_END(SEG_OPAQUE + pass);
   }
   /* the cars' tyre marks (clTireTrackManager), then the headlights' pools on the road
@@ -5587,6 +5661,13 @@ void app_frame(float dt) {
             " over %d sharp %d\n", G.race_time, g0 - t1, now_ms() - g0, G.rp.draws, G.rp.triangles, car_kmh(c),
             c->cam_blur, G.over_draws, G.menu.sharp_on && !G.sharp_rest);
   }
+  { /* test: MT3DX_INTERP_LOG=n logs n frames' timing and the drawn car's place, from the race's frame 120 (how evenly it moves) */
+    static int lg = -1;
+    if (lg < 0) lg = getenv("MT3DX_INTERP_LOG") ? atoi(getenv("MT3DX_INTERP_LOG")) : 0;
+    if (lg > 0 && G.race_frames > 120 && G.race_frames <= 120 + lg)
+      fprintf(stderr, "interp: dt %.2f ms steps %d alpha %.3f smooth %d car %.3f %.3f cam %.3f %.3f\n", (double)dt * 1e3, steps, (double)G.interp_alpha, G.interp, (double)c->pos[0], (double)c->pos[2], (double)c->cam_pos[0], (double)c->cam_pos[2]);
+  }
+  if (pose_swapped) pose_set(&G.car, &pose_real), pose_swapped = 0; /* (the real state again) */
   if (G.paused) {
     menu_pause_draw(&G.menu);
     if (G.vs_closed) vs_closed_draw();

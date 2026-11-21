@@ -116,6 +116,7 @@ typedef struct {
   int rum_row;  /* the vibration screen's row */
   int disp_row; /* the display options screen's row (MENU_DISPLAY, PC) */
   int gfx_row;  /* the graphics screen's row (MENU_GRAPHICS) */
+  int smooth_on; /* SMOOTH MOTION (graphics screen, saved, on by default): a race is drawn between the physics' steps where the display needs it (app.c want_smooth) */
   int fps_row, lock60; /* Android's 60 FPS LOCK row in the graphics screen (fps_row, set by the app), and the switch (saved): asks the system for a 60 Hz screen */
   int net_row, net_ping, net_log, net_act; /* the network options screen (MENU_NETWORK): its row, PING ON THE HUD, DETAILED NET LOG (both saved), and the action it asks of the platform */
   char net_lines[6][72]; /* its connection lines, filled by the app */

@@ -50,6 +50,9 @@ void app_toggle_fullscreen(void);
 void app_window_row(int on);
 /* the Windows player's network options rows (ALLOW THROUGH FIREWALL, OPEN LOG FOLDER): app_firewall_row(1) gives the screen them */
 void app_firewall_row(int on);
+/* 1 while the race on screen is drawn with smooth motion (the picture blended between the physics' steps: a display that is not 60 Hz, a versus): the
+ * platform should then show a frame every refresh of the display, not hold itself to 60 a second. */
+int app_smooth(void);
 /* Android's 60 FPS LOCK (graphics screen): app_frame_lock_row(1) gives it the row; app_frame_lock() is 1 while it is on, the platform's to ask the system for a 60 Hz screen */
 void app_frame_lock_row(int on);
 int app_frame_lock(void);
