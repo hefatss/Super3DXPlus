@@ -463,11 +463,19 @@ enum { SEG_SKY, SEG_OPAQUE, SEG_CUTOUT, SEG_BLEND, SEG_LIGHTS, SEG_WARM, SEG_BLU
 /* A line for each frame that missed its vsync or ran slow, and a summary every 10 s. The
  * slow ones say where the render's time went and how long the frame before waited for the
  * GPU in presentRenderbuffer. */
+static int dt_hist[6];
+static double present_sum, present_peak;
 static void perf_frame(float dt, int steps, double phys, double render, int warmed, const render_params *rp) {
   G.race_time += dt;
   if (phys > G.max_phys) G.max_phys = phys;
   if (render > G.max_render) G.max_render = render;
   if (steps != 1) G.odd_steps++;
+  { /* (how the frames' lengths fall, for the 600-frame line: a few frames off the 16.7 ms is what the eye calls a stutter) */
+    float ms = dt * 1e3f;
+    ++dt_hist[ms < 12.0f ? 0 : ms < 15.0f ? 1 : ms < 18.5f ? 2 : ms < 21.0f ? 3 : ms < 25.0f ? 4 : 5];
+    present_sum += G.present_ms;
+    if (G.present_ms > present_peak) present_peak = G.present_ms;
+  }
   int slow = dt > 1.5f / 60.0f || phys + render > 12.0;
   if (slow) G.slow_frames++;
   /* 1080p at 60 before any effect: over 3 of 120 frames missing their vsync (a
@@ -504,6 +512,9 @@ static void perf_frame(float dt, int steps, double phys, double render, int warm
     wpk_warm_stats(warm, sizeof warm);
     fprintf(G.perf, "%7.2fs 600 frames: %d slow, %d not one step, max phys %.2f ms, max draw %.2f ms, %d unsharpened; %s\n",
             G.race_time, G.slow_frames, G.odd_steps, G.max_phys, G.max_render, G.sharp_rested, warm);
+    fprintf(G.perf, "         frame lengths (<12, <15, <18.5, <21, <25, longer ms): %d %d %d %d %d %d; present wait avg %.2f max %.2f ms\n", dt_hist[0], dt_hist[1], dt_hist[2],
+            dt_hist[3], dt_hist[4], dt_hist[5], present_sum / 600.0, present_peak);
+    memset(dt_hist, 0, sizeof dt_hist), present_sum = present_peak = 0;
     fflush(G.perf);
     G.perf_frames = G.odd_steps = G.slow_frames = G.sharp_rested = 0;
     G.max_phys = G.max_render = 0;
