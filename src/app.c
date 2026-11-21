@@ -5004,6 +5004,27 @@ static int want_smooth(void) {
 
 int app_smooth(void) { return G.interp; }
 
+/* The time a frame moves the picture by. The frames' own lengths (the clock at each frame's start) are not when they were shown: a PC that queues frames starts several in
+ * 7 ms, then waits, and the display shows them all one refresh apart; so the car moved by the clock's time went too slowly for those frames and then too fast. The display's
+ * refresh is steady: a frame moves the picture by one refresh, or by as many as went by when it was late; the clock's time is kept for the long run by taking up the
+ * difference a little at a time. */
+static float frame_time(float dt) {
+  static float period, drift;
+  if (G.race_frames == 0) period = disp_dt, drift = 0;
+  if (dt < 0.75f * period) period = dt; /* (a quicker rhythm than thought) */
+  else if (dt < 1.35f * period) period += (dt - period) * 0.1f;
+  float n = floorf(dt / period + 0.5f);
+  n = n < 1.0f ? 1.0f : n > 4.0f ? 4.0f : n;
+  float use = n * period;
+  drift += dt - use;
+  float corr = drift * 0.05f;
+  float lim = 0.15f * period;
+  corr = corr > lim ? lim : corr < -lim ? -lim : corr;
+  drift -= corr;
+  if (drift > 0.1f || drift < -0.1f) drift = 0; /* (a hitch's long frame: not made up for) */
+  return use + corr;
+}
+
 void app_frame(float dt) {
   net_log_force(G.menu.net_log);
   hud_set_ping(G.menu.net_ping);
@@ -5205,7 +5226,7 @@ void app_frame(float dt) {
   if (G.race_frames == 0) G.interp = want_smooth() && !ending, G.interp_acc = 0, pose_prev_ok = 0; /* (a race is drawn smooth or not from its first frame to its last) */
   int steps;
   if (G.interp) { /* smooth motion: the steps on the clock's time, the picture blended between the last two (a versus client's clock a little fast or slow to follow the host's) */
-    G.interp_acc += dt * 60.0f * vs_rate();
+    G.interp_acc += frame_time(dt) * 60.0f * vs_rate();
     steps = (int)G.interp_acc;
     G.interp_acc -= (float)steps;
     if (steps > 4) steps = 4, G.interp_acc = 0; /* (after a hitch: no catching up for ever) */
