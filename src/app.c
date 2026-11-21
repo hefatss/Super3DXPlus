@@ -5737,6 +5737,11 @@ void app_frame(float dt) {
       fprintf(stderr, "interp: dt %.2f ms use %.2f steps %d alpha %.3f smooth %d car %.3f %.3f cam %.3f %.3f eyedist %.3f\n", (double)dt * 1e3, (double)G.interp_use * 1e3, steps, (double)G.interp_alpha, G.interp, (double)c->pos[0], (double)c->pos[2], (double)c->cam_pos[0], (double)c->cam_pos[2], (double)sqrtf(dx * dx + dy * dy + dz * dz));
     }
   }
+  if (getenv("MT3DX_GPUTIME") && G.race_frames % 30 == 0) { /* test: how long the GPU needs for this frame (glFinish), twice a second, with the speed and the radial blur */
+    double g0 = now_ms();
+    glFinish();
+    fprintf(stderr, "gputime: race frame %d cpu %.2f ms, gpu wait %.2f ms, kmh %.0f blur %.2f draws %d tris %d\n", G.race_frames, g0 - t1, now_ms() - g0, car_kmh(c), c->cam_blur, G.rp.draws, G.rp.triangles);
+  }
   if (pose_swapped) pose_set(&G.car, &pose_real), pose_swapped = 0, spark_blend(NULL, 1.0f); /* (the real state again) */
   if (G.paused) {
     menu_pause_draw(&G.menu);
