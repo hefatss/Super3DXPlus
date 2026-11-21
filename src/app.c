@@ -5434,6 +5434,13 @@ void app_frame(float dt) {
     pose_blend(&blended, &pose_prev, &pose_real, G.interp_alpha);
     pose_set(&G.car, &blended);
     pose_swapped = 1;
+    /* what the effects keep to a car (the sparks, the smoke, the backfire) moves with it, and the tyre marks' newest section only as far on */
+    float shift[SPARK_CARS][3];
+    memset(shift, 0, sizeof shift);
+    for (int j = 0; j < 3; ++j) shift[0][j] = blended.body[12 + j] - pose_real.body[12 + j];
+    for (int k = 0; k < CAR_RIVALS; ++k)
+      for (int j = 0; j < 3; ++j) shift[1 + k][j] = blended.rival_body[k][12 + j] - pose_real.rival_body[k][12 + j];
+    spark_blend((const float(*)[3])shift, G.interp_alpha);
   }
 
   draw_backmirror(&G.car, movie);
@@ -5667,7 +5674,7 @@ void app_frame(float dt) {
     if (lg > 0 && G.race_frames > 120 && G.race_frames <= 120 + lg)
       fprintf(stderr, "interp: dt %.2f ms steps %d alpha %.3f smooth %d car %.3f %.3f cam %.3f %.3f\n", (double)dt * 1e3, steps, (double)G.interp_alpha, G.interp, (double)c->pos[0], (double)c->pos[2], (double)c->cam_pos[0], (double)c->cam_pos[2]);
   }
-  if (pose_swapped) pose_set(&G.car, &pose_real), pose_swapped = 0; /* (the real state again) */
+  if (pose_swapped) pose_set(&G.car, &pose_real), pose_swapped = 0, spark_blend(NULL, 1.0f); /* (the real state again) */
   if (G.paused) {
     menu_pause_draw(&G.menu);
     if (G.vs_closed) vs_closed_draw();

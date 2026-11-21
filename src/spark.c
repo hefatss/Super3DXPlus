@@ -98,6 +98,14 @@ static struct {
   render_vertex v[2][4 * 2 * SPARK_CARS * SPARK_MAX];
 } S;
 
+static struct { float shift[SPARK_CARS][3]; float alpha; } L = { .alpha = 1.0f };
+
+void spark_blend(const float (*shift)[3], float alpha) {
+  memset(L.shift, 0, sizeof L.shift);
+  if (shift && alpha < 1.0f) memcpy(L.shift, shift, sizeof L.shift);
+  L.alpha = shift ? alpha : 1.0f;
+}
+
 void spark_reset(void) {
   S.ready = 1;
   for (int k = 0; k < SPARK_CARS; ++k) {
@@ -304,7 +312,7 @@ void spark_draw(const mat4 *proj, const mat4 *view, render_params *rp) {
       float q[6][3];
       for (int c = 0; c < 6; ++c) {
         float p[3];
-        for (int j = 0; j < 3; ++j) p[j] = S.pos[k][j] + s->rel[j] + s->p[c][j];
+        for (int j = 0; j < 3; ++j) p[j] = S.pos[k][j] + L.shift[k][j] + s->rel[j] + s->p[c][j];
         for (int j = 0; j < 3; ++j) q[c][j] = m[j] * p[0] + m[4 + j] * p[1] + m[8 + j] * p[2] + m[12 + j];
       }
       for (int h = 0; h < 2; ++h) {
@@ -347,7 +355,7 @@ void spark_draw_backfire(const mat4 *proj, const mat4 *view, render_params *rp) 
           const float *src = tri->v[q < 3 ? q : 2]; /* (the triangle as a quad, its last corner twice) */
           float l[3], w[3];
           for (int j = 0; j < 3; ++j) l[j] = c->at[i][j] + 0.5f * src[j];
-          for (int j = 0; j < 3; ++j) w[j] = b[j] * l[0] + b[4 + j] * l[1] + b[8 + j] * l[2] + b[12 + j];
+          for (int j = 0; j < 3; ++j) w[j] = b[j] * l[0] + b[4 + j] * l[1] + b[8 + j] * l[2] + b[12 + j] + L.shift[k][j];
           for (int j = 0; j < 3; ++j) v[q].pos[j] = m[j] * w[0] + m[4 + j] * w[1] + m[8 + j] * w[2] + m[12 + j];
           v[q].uv[0] = src[3];
           v[q].uv[1] = src[4];
@@ -373,7 +381,8 @@ void spark_draw_smoke(const mat4 *proj, const mat4 *view, render_params *rp) {
       const puff *q = &S.pf[k][i];
       if (!q->on) continue;
       float c[3];
-      for (int j = 0; j < 3; ++j) c[j] = m[j] * q->p[0] + m[4 + j] * q->p[1] + m[8 + j] * q->p[2] + m[12 + j];
+      const float pp[3] = { q->p[0] + L.shift[k][0], q->p[1] + L.shift[k][1], q->p[2] + L.shift[k][2] };
+      for (int j = 0; j < 3; ++j) c[j] = m[j] * pp[0] + m[4 + j] * pp[1] + m[8 + j] * pp[2] + m[12 + j];
       if (c[2] > -1.0f) continue;
       float hw = ROLLUP_SIZE * q->size, hh = 0.5f * ROLLUP_SIZE * q->size, cy = c[1] + ROLLUP_SIZE;
       const float xs[4] = { c[0] - hw, c[0] + hw, c[0] + hw, c[0] - hw }, ys[4] = { cy + hh, cy + hh, cy - hh, cy - hh };
@@ -398,9 +407,21 @@ void spark_draw_tracks(const mat4 *proj, const mat4 *view, render_params *rp) {
   for (int k = 0; k < SPARK_CARS; ++k)
     for (int w = 0; w < 4; ++w) {
       const track *t = &S.t[k][w];
+      track_node eased[TRACK_NODES]; /* (smooth motion: the newest section not yet where the wheel is, but the part of the way the car's drawing has come) */
+      if (L.alpha < 1.0f && t->count >= 4) {
+        memcpy(eased, t->n, sizeof eased[0] * (size_t)t->count);
+        for (int e = t->count - 2; e < t->count; ++e) {
+          const track_node *old = &t->n[e - 2];
+          float d[3] = { t->n[e].p[0] - old->p[0], t->n[e].p[1] - old->p[1], t->n[e].p[2] - old->p[2] };
+          if (d[0] * d[0] + d[1] * d[1] + d[2] * d[2] > 6400.0f) continue; /* (a jump: as it is) */
+          for (int x = 0; x < 3; ++x) eased[e].p[x] = old->p[x] + d[x] * L.alpha;
+          eased[e].v = old->v + (t->n[e].v - old->v) * L.alpha;
+        }
+      }
+      const track_node *nodes = L.alpha < 1.0f && t->count >= 4 ? eased : t->n;
       /* each two sections a quad: (L0 R0 R1 L1), the strip's, skipped while all clear */
       for (int i = 0; i + 3 < t->count; i += 2) {
-        const track_node *c[4] = { &t->n[i], &t->n[i + 1], &t->n[i + 3], &t->n[i + 2] };
+        const track_node *c[4] = { &nodes[i], &nodes[i + 1], &nodes[i + 3], &nodes[i + 2] };
         if (c[0]->a <= 0 && c[2]->a <= 0) continue;
         render_vertex *v = S.tv + 4 * q++;
         for (int j = 0; j < 4; ++j) {

@@ -28,6 +28,10 @@ void spark_draw_smoke(const mat4 *proj, const mat4 *view, render_params *rp);
  * drawn, as the sparks */
 void spark_backfire_car(int k, int pack, int body, int tuned_exhaust);
 void spark_draw_backfire(const mat4 *proj, const mat4 *view, render_params *rp);
+/* Smooth motion (app.c car_pose): the cars are drawn alpha of the way from the last step's state to the current one, not at the current: what the effects keep to a car
+ * (the sparks, the smoke, the backfire: shift[k], the car's place drawn less its place in the step) is drawn moved with it, and a tyre mark's newest section only that far
+ * on its way. alpha 1 (or shift NULL): as it was. */
+void spark_blend(const float (*shift)[3], float alpha);
 /* The route console's walls at a junction (clCourseJunctionManager): none up (a new race), one arcade frame of them from the race's junction state (on: a versus racing), and drawn, as the sparks */
 void junction_reset(void);
 void junction_step(const car_race *r, int on);
