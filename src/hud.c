@@ -2542,9 +2542,16 @@ static void draw_countdown(const car_state *car) {
      * its place ("2速に入れろ"); these files' English "Put the gear in" fills it, so the digit
      * goes after the text instead (its right edge, 416 on the screen, and a space) */
     int f = (int)(t * 60.0f) % 30;
+    const int digit = anm_sprite(KEEP_SHIFT_DIGIT[car->start_gear >= 1 && car->start_gear <= 6 ? car->start_gear : 0]);
+#if WMMT_LANG_EN
     anm_swap none = { anm_sprite(T_KEEP_SHIFT), -1 };
     anm_draw_ex(keep, f, 1, 0, 0, &none, 1);
-    if (f < 20) anm_draw_sprite(anm_sprite(KEEP_SHIFT_DIGIT[car->start_gear >= 1 && car->start_gear <= 6 ? car->start_gear : 0]), KEEP_SHIFT_X, KEEP_SHIFT_Y, 1);
+    if (f < 20) anm_draw_sprite(digit, KEEP_SHIFT_X, KEEP_SHIFT_Y, 1);
+#else
+    /* (the Japanese text leaves the template its place at the start: the animation's own, the digit in it as the arcade sets it; issue 38: the English placement ran over the text) */
+    anm_swap sw = { anm_sprite(T_KEEP_SHIFT), digit };
+    anm_draw_ex(keep, f, 1, 0, 0, &sw, 1);
+#endif
   }
   if (n > 2) return;
   float from = COUNT_FROM - (float)n - 11.0f / 12.0f; /* when n came */
