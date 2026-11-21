@@ -143,7 +143,14 @@ The OPTION screen shows the touch screen's own settings (steering, gyro sensitiv
 (`--hud touch`, `hud_style`); with the arcade HUD it has KEY BINDINGS and the graphics. The row the controls are on has an orange bar at its
 left and a line under it (the keys are lit).
 
-TOUCH LAYOUT: drag a group of keys or a gauge to move it (a finger, or the d-pad moves the chosen one 8 px; the view key picks the next), the - and + buttons size it (keys 60-160%, gauges 50-200%). It is saved in the options file (`keys` for the groups, `hudel` for the seven gauges). On a PC, `--hud touch` shows the same screen (`MT3DX_GOTO=43`).
+TOUCH LAYOUT: two tabs, BUTTON (the touch keys' groups) and HUD (the race's gauges: dials, speed plate, gear shifter, rank, time left, map,
+rival info). A tab shows and takes only its own family, so a gauge is never grabbed while the keys are placed; the title reads TOUCH LAYOUT
+or HUD LAYOUT. Drag an item of the tab to move it (a finger, or the d-pad moves the chosen one 8 px; OK picks the next of the tab, the
+view key the other tab); an item let go on another one of its tab goes back where it was, and a red box says so while it is over one. The
+- and + buttons size the chosen item (keys 60-160%, gauges 50-200%), RESET puts the tab's items back (not the other tab's), DONE (or the
+back key) returns to OPTION. Keys may sit over the gauges (the gauges are the race's own, drawn under them); two items of the same tab may
+not. It is saved in the options file (`keys` for the groups, `hudel` for the seven gauges). On a PC, `--hud touch` shows the same screen
+(`MT3DX_GOTO=43`).
 
 Test hooks: `MT3DX_KEYS="<s>:<key name>;..."` presses and releases that keyboard key (SDL names: Return, Left, Delete, Escape, a) at
 those seconds, through the same path as a real key.

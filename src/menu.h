@@ -246,14 +246,17 @@ typedef struct {
   /* an owned car's colour before the colour select's choice went onto it (-1 none): its card's
    * back key gives it back (only the card's tap keeps the new one) */
   int card_color_was;
-  /* The OPTION screen's KEY LAYOUT (MENU_LAYOUT): the race's touch keys by group
+  /* The OPTION screen's TOUCH LAYOUT (MENU_LAYOUT): the race's touch keys by group
    * (hud.h HUD_KEYS_*) their size (percent, 60..160) and move (layout px), kept with the
    * options; the editor's chosen group, the finger dragging it (lay_drag) from where (lay_x, y
    * less the group's move), and a button of its panel tapped (lay_tap, 1 + LAY_*) */
   int key_k[5], key_dx[5], key_dy[5]; /* (HUD_KEY_GROUPS) */
-  /* and the consoles' (hud.h HUD_EL_*, 7 of them): size percent (50..200) and move; lay_sel counts the key groups first (0..2), then these (3..9) */
+  /* and the consoles' (hud.h HUD_EL_*, 7 of them): size percent (50..200) and move; lay_sel counts the key groups first (0..4), then these (5..11) */
   int el_k[7], el_dx[7], el_dy[7];
   int lay_sel, lay_drag, lay_tap;
+  int lay_cat;            /* the editor's tab: 0 the keys (BUTTON), 1 the consoles (HUD); kept for the session */
+  int lay_last[2];        /* the item chosen last in each tab (the tab comes back to it) */
+  int lay_dx0, lay_dy0;   /* the chosen item's move when the drag began (a drag let go on another one goes back to it) */
   void *lay_touch;
   float lay_x, lay_y;
   /* The dress-up menu the game mode select's wheel key opens (MENU_TG_SELECT, the arcade's

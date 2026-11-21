@@ -2089,26 +2089,52 @@ static const char *const OPT_RES_PAD[2] = { "1024 X 768", "2048 X 1536" };
 static const char *const OPT_RES_PHONE[2] = { "480 X 320", "960 X 640" };
 static const char *const *opt_res(const menu_state *m) { return m->res_phone ? OPT_RES_PHONE : OPT_RES_PAD; }
 
-/* ---- the OPTION screen's KEY LAYOUT (MENU_LAYOUT, the touch keys' size and
+/* ---- the OPTION screen's TOUCH LAYOUT (MENU_LAYOUT, the touch keys' size and
  * place the player's own): the race's keys over the screen as they will be, a group dragged
- * by a finger moves (kept on the screen), the panel's - and + size the chosen group, RESET ALL
- * puts every group back, DONE (or the back key) back to OPTION. Its key on the OPTION screen
- * on the PEDALS row's right. Its words the HUD's (no pre-rendered ones), in the 1024 x 768
- * layout. ---- */
-enum { LAY_SMALLER, LAY_BIGGER, LAY_RESET, LAY_DONE, LAY_BUTTONS };
-static const float LAY_PANEL[4] = { 272, 228, 480, 270 };
-static const float LAY_BUTTON[LAY_BUTTONS][4] = { { 296, 356, 110, 56 }, { 618, 356, 110, 56 }, { 296, 426, 204, 56 },
-                                                  { 524, 426, 204, 56 } };
+ * by a finger moves (kept on the screen and off the others of its tab), the panel's - and +
+ * size the chosen group, RESET puts the tab's items back, DONE (or the back key) back to
+ * OPTION. Two tabs: BUTTON (the keys) and HUD (the gauges); a tab shows, takes the touches of
+ * and selects only its own family, so a gauge is never grabbed while the keys are placed. Its
+ * key on the OPTION screen on the PEDALS row's right. Its words the HUD's (no pre-rendered
+ * ones), in the 1024 x 768 layout. ---- */
+enum { LAY_SMALLER, LAY_BIGGER, LAY_RESET, LAY_DONE, LAY_CAT_BUTTON, LAY_CAT_HUD, LAY_BUTTONS };
+static const float LAY_PANEL[4] = { 272, 200, 480, 300 };
+static const float LAY_BUTTON[LAY_BUTTONS][4] = { { 296, 352, 110, 56 }, { 618, 352, 110, 56 }, { 296, 424, 204, 56 },
+                                                  { 524, 424, 204, 56 }, { 296, 250, 204, 36 }, { 524, 250, 204, 36 } };
 static const char *const LAY_GROUP[HUD_KEY_GROUPS] = { "TOP KEYS", "LEFT KEYS", "PEDALS", "SHIFT UP", "SHIFT DOWN" };
 #define LAY_K_STEP 10
-/* what the editor moves: the three key groups, then the consoles (hud.h HUD_EL_*), the chosen one lay_sel */
+/* what the editor moves: the key groups, then the consoles (hud.h HUD_EL_*), the chosen one lay_sel */
 #define LAY_ITEMS (HUD_KEY_GROUPS + HUD_ELEMENTS)
 static int *lay_k(menu_state *m, int g) { return g < HUD_KEY_GROUPS ? &m->key_k[g] : &m->el_k[g - HUD_KEY_GROUPS]; }
 static int *lay_dx(menu_state *m, int g) { return g < HUD_KEY_GROUPS ? &m->key_dx[g] : &m->el_dx[g - HUD_KEY_GROUPS]; }
 static int *lay_dy(menu_state *m, int g) { return g < HUD_KEY_GROUPS ? &m->key_dy[g] : &m->el_dy[g - HUD_KEY_GROUPS]; }
+static int lay_kv(const menu_state *m, int g) { return g < HUD_KEY_GROUPS ? m->key_k[g] : m->el_k[g - HUD_KEY_GROUPS]; }
+static int lay_dxv(const menu_state *m, int g) { return g < HUD_KEY_GROUPS ? m->key_dx[g] : m->el_dx[g - HUD_KEY_GROUPS]; }
+static int lay_dyv(const menu_state *m, int g) { return g < HUD_KEY_GROUPS ? m->key_dy[g] : m->el_dy[g - HUD_KEY_GROUPS]; }
 static const char *lay_name(int g) { return g < HUD_KEY_GROUPS ? LAY_GROUP[g] : hud_el_name(g - HUD_KEY_GROUPS); }
 static int lay_kmin(int g) { return (int)((g < HUD_KEY_GROUPS ? HUD_KEY_K_MIN : HUD_EL_K_MIN) * 100 + 0.5f); }
 static int lay_kmax(int g) { return (int)((g < HUD_KEY_GROUPS ? HUD_KEY_K_MAX : HUD_EL_K_MAX) * 100 + 0.5f); }
+/* the tab's items: the keys' groups (0) or the consoles' (1) */
+static int lay_first(const menu_state *m) { return m->lay_cat ? HUD_KEY_GROUPS : 0; }
+static int lay_count(const menu_state *m) { return m->lay_cat ? HUD_ELEMENTS : HUD_KEY_GROUPS; }
+static int lay_in(const menu_state *m, int g) { return g >= lay_first(m) && g < lay_first(m) + lay_count(m); }
+/* item g at (k, dx, dy) sits on another of its tab */
+static int lay_ov(const menu_state *m, int g, float k, float dx, float dy) {
+  return g < HUD_KEY_GROUPS ? hud_layout_overlap(g, m->gyro == HUD_STEER_GYRO, k, dx, dy)
+                            : hud_el_overlap(g - HUD_KEY_GROUPS, k, dx, dy);
+}
+/* the chosen item where it is now sits on another of its tab */
+static int lay_ov_now(const menu_state *m, int g) {
+  return lay_ov(m, g, (float)lay_kv(m, g) * 0.01f, (float)lay_dxv(m, g), (float)lay_dyv(m, g));
+}
+/* the tab cat (0 the keys, 1 the consoles): its item chosen last, or its first */
+static void lay_tab(menu_state *m, int cat) {
+  cat = cat ? 1 : 0;
+  if (m->lay_cat == cat) return;
+  m->lay_last[m->lay_cat] = m->lay_sel;
+  m->lay_cat = cat;
+  m->lay_sel = lay_in(m, m->lay_last[cat]) ? m->lay_last[cat] : lay_first(m);
+}
 
 static int layout_button(float x, float y) {
   for (int b = 0; b < LAY_BUTTONS; ++b) {
@@ -2134,12 +2160,13 @@ static void layout_enter(menu_state *m) {
   go(m, MENU_LAYOUT);
   m->lay_drag = m->lay_tap = 0;
   m->lay_touch = 0;
-  if (m->lay_sel < 0 || m->lay_sel >= LAY_ITEMS) m->lay_sel = HUD_KEYS_RIGHT;
+  m->lay_cat = m->lay_cat ? 1 : 0; /* (the tab last used this session: BUTTON the first time) */
+  if (!lay_in(m, m->lay_sel)) m->lay_sel = lay_first(m);
   layout_apply(m);
 }
 
-/* its touches (menu_touch's, all phases): a panel button, or a group taken and dragged; 0 for
- * one not its own (the back key's) */
+/* its touches (menu_touch's, all phases): a panel button, or an item of the tab taken and
+ * dragged; 0 for one not its own (the back key's, an item of the other tab) */
 static int layout_touch(menu_state *m, void *id, int phase, float x, float y) {
   if (phase == TOUCH_BEGAN && !m->lay_drag) {
     int b = layout_button(x, y);
@@ -2148,15 +2175,17 @@ static int layout_touch(menu_state *m, void *id, int phase, float x, float y) {
       return 1;
     }
     layout_apply(m);
-    int g = hud_layout_hit(m->gyro == HUD_STEER_GYRO, x, y);
-    if (g < 0) { /* (no keys there: a console) */
+    int g = -1;
+    if (!m->lay_cat) g = hud_layout_hit(m->gyro == HUD_STEER_GYRO, x, y);
+    else {
       int e = hud_el_hit(x, y);
-      if (e < 0) return 0;
-      g = HUD_KEY_GROUPS + e;
+      if (e >= 0) g = HUD_KEY_GROUPS + e;
     }
+    if (g < 0) return 0;
     m->lay_sel = g;
     m->lay_drag = 1, m->lay_touch = id;
     m->lay_x = x - (float)*lay_dx(m, g), m->lay_y = y - (float)*lay_dy(m, g);
+    m->lay_dx0 = *lay_dx(m, g), m->lay_dy0 = *lay_dy(m, g);
     return 1;
   }
   if (!m->lay_drag || id != m->lay_touch) return phase != TOUCH_BEGAN;
@@ -2166,7 +2195,13 @@ static int layout_touch(menu_state *m, void *id, int phase, float x, float y) {
   layout_apply(m);
   if (phase == TOUCH_ENDED) {
     m->lay_drag = 0, m->lay_touch = 0;
-    m->garage_changed = 1;
+    if (lay_ov_now(m, g)) { /* let go on another one of its tab: back where it was */
+      *lay_dx(m, g) = m->lay_dx0, *lay_dy(m, g) = m->lay_dy0;
+      snd_menu(SND_CANCEL);
+      layout_apply(m);
+    } else {
+      m->garage_changed = 1;
+    }
   }
   return 1;
 }
@@ -2175,36 +2210,67 @@ static void bindings_enter(menu_state *m);
 static void layout_step(menu_state *m, const menu_in *in) {
   int b = m->lay_tap - 1;
   m->lay_tap = 0;
-  if (in->back || in->ok || b == LAY_DONE) {
+  if (in->back || b == LAY_DONE) {
     snd_menu(SND_CANCEL);
     m->lay_drag = 0, m->lay_touch = 0;
     bindings_enter(m);
     return;
   }
-  int g = m->lay_sel;
-  if (in->view) { /* the next group of keys, or console */
-    snd_menu(SND_CURSOR);
-    m->lay_sel = (g + 1) % LAY_ITEMS;
+  if (b == LAY_CAT_BUTTON || b == LAY_CAT_HUD) { /* the tab tapped */
+    if (m->lay_cat != (b == LAY_CAT_HUD)) snd_menu(SND_CURSOR);
+    lay_tab(m, b == LAY_CAT_HUD);
+    layout_apply(m);
     return;
   }
-  if (in->dx || in->dy) { /* the group moves (kept on the screen) */
-    *lay_dx(m, g) += 8 * in->dx, *lay_dy(m, g) += 8 * in->dy;
-    layout_clamp(m, g);
+  if (in->view) { /* the view button: the other tab */
+    snd_menu(SND_CURSOR);
+    lay_tab(m, !m->lay_cat);
+    layout_apply(m);
+    return;
+  }
+  int g = m->lay_sel;
+  if (in->ok) { /* the next item of the tab (BACK or DONE leaves) */
+    snd_menu(SND_CURSOR);
+    int first = lay_first(m);
+    m->lay_sel = first + (g - first + 1) % lay_count(m);
+    return;
+  }
+  if (in->dx || in->dy) { /* the item moves (kept on the screen and off the others of its tab) */
+    int dx = *lay_dx(m, g) + 8 * in->dx, dy = *lay_dy(m, g) + 8 * in->dy;
+    float k = (float)*lay_k(m, g) * 0.01f, fx = (float)dx, fy = (float)dy;
+    if (g < HUD_KEY_GROUPS) hud_layout_clamp(g, m->gyro == HUD_STEER_GYRO, k, &fx, &fy);
+    else hud_el_clamp(g - HUD_KEY_GROUPS, k, &fx, &fy);
+    dx = (int)floorf(fx + 0.5f), dy = (int)floorf(fy + 0.5f);
+    if (lay_ov(m, g, k, (float)dx, (float)dy) && !lay_ov_now(m, g)) { /* (a step onto another one: no) */
+      snd_menu(SND_CANCEL);
+      return;
+    }
+    *lay_dx(m, g) = dx, *lay_dy(m, g) = dy;
     m->garage_changed = 1;
     layout_apply(m);
     return;
   }
   if (b == LAY_SMALLER || b == LAY_BIGGER) {
-    int k = *lay_k(m, g) + (b == LAY_BIGGER ? LAY_K_STEP : -LAY_K_STEP);
-    if (k < lay_kmin(g) || k > lay_kmax(g)) return;
+    int nk = *lay_k(m, g) + (b == LAY_BIGGER ? LAY_K_STEP : -LAY_K_STEP);
+    if (nk < lay_kmin(g) || nk > lay_kmax(g)) return;
+    float k = (float)nk * 0.01f, fx = (float)*lay_dx(m, g), fy = (float)*lay_dy(m, g);
+    if (g < HUD_KEY_GROUPS) hud_layout_clamp(g, m->gyro == HUD_STEER_GYRO, k, &fx, &fy);
+    else hud_el_clamp(g - HUD_KEY_GROUPS, k, &fx, &fy);
+    if (lay_ov(m, g, k, fx, fy) && !lay_ov_now(m, g)) { /* (it would reach another one: no) */
+      snd_menu(SND_CANCEL);
+      return;
+    }
     snd_menu(SND_CURSOR);
-    *lay_k(m, g) = k;
-    layout_clamp(m, g);
+    *lay_k(m, g) = nk;
+    *lay_dx(m, g) = (int)floorf(fx + 0.5f), *lay_dy(m, g) = (int)floorf(fy + 0.5f);
     m->garage_changed = 1;
-  } else if (b == LAY_RESET) {
+  } else if (b == LAY_RESET) { /* (the tab's items only) */
     snd_menu(SND_SELECT);
-    for (int i = 0; i < HUD_KEY_GROUPS; ++i) m->key_k[i] = 100, m->key_dx[i] = m->key_dy[i] = 0;
-    for (int i = 0; i < HUD_ELEMENTS; ++i) m->el_k[i] = 100, m->el_dx[i] = m->el_dy[i] = 0;
+    if (m->lay_cat) {
+      for (int i = 0; i < HUD_ELEMENTS; ++i) m->el_k[i] = 100, m->el_dx[i] = m->el_dy[i] = 0;
+    } else {
+      for (int i = 0; i < HUD_KEY_GROUPS; ++i) m->key_k[i] = 100, m->key_dx[i] = m->key_dy[i] = 0;
+    }
     m->garage_changed = 1;
   }
   layout_apply(m);
@@ -2218,26 +2284,28 @@ static void draw_layout(const menu_state *m, int clock, float screen_w, float sc
   draw_back(ID.bg, clock % 600, 1);
   anm_fill(0, 0, 0, 0.6f);
   layout_apply(m);
-  hud_draw_layout(screen_w, screen_h, m->gyro, m->lay_sel >= 0 && m->lay_sel < LAY_ITEMS ? m->lay_sel : 0); /* (the keys and consoles first: the panel over them) */
+  int g = m->lay_sel >= 0 && m->lay_sel < LAY_ITEMS && lay_in(m, m->lay_sel) ? m->lay_sel : lay_first(m);
+  hud_draw_layout(screen_w, screen_h, m->gyro, g, lay_ov_now(m, g)); /* (the keys and consoles first: the panel over them) */
   hud_ui_begin(screen_w, screen_h);
   const float *p = LAY_PANEL;
   hud_ui_rect(p[0], p[1], p[2], p[3], 0.03f, 0.04f, 0.06f, 0.82f);
   hud_ui_rect(p[0], p[1], p[2], 3, 1.0f, 0.42f, 0.05f, 0.95f);
-  layout_text_mid("TOUCH LAYOUT", p[1] + 16, 4, 1, 1, 1);
-  layout_text_mid("DRAG A KEY GROUP OR A GAUGE TO MOVE IT", p[1] + 62, 2, 0.8f, 0.8f, 0.8f);
+  layout_text_mid(m->lay_cat ? "HUD LAYOUT" : "TOUCH LAYOUT", p[1] + 16, 3.5f, 1, 1, 1);
+  layout_text_mid(m->lay_cat ? "DRAG A GAUGE TO MOVE IT" : "DRAG A KEY GROUP TO MOVE IT", p[1] + 96, 2, 0.8f, 0.8f, 0.8f);
   char line[48];
-  int g = m->lay_sel >= 0 && m->lay_sel < LAY_ITEMS ? m->lay_sel : 0;
-  layout_text_mid(lay_name(g), p[1] + 92, 2.5f, 1.0f, 0.55f, 0.15f);
-  static const char *const LABEL[LAY_BUTTONS] = { "-", "+", "RESET ALL", "DONE" };
+  layout_text_mid(lay_name(g), p[1] + 120, 2.5f, 1.0f, 0.55f, 0.15f);
+  static const char *const LABEL[LAY_BUTTONS] = { "-", "+", "RESET", "DONE", "BUTTON", "HUD" };
   for (int b = 0; b < LAY_BUTTONS; ++b) {
     const float *r = LAY_BUTTON[b];
     float px = b < 2 ? 5.0f : 3.0f;
+    int on = (b == LAY_CAT_BUTTON && !m->lay_cat) || (b == LAY_CAT_HUD && m->lay_cat); /* (the tab in use) */
     hud_ui_button(r[0], r[1], r[2], r[3], m->lay_tap == b + 1);
-    hud_ui_text(LABEL[b], r[0] + 0.5f * (r[2] - hud_ui_text_width(LABEL[b], px)), r[1] + 0.5f * (r[3] - 7.0f * px), px, 1, 1,
-                1, 1);
+    hud_ui_text(LABEL[b], r[0] + 0.5f * (r[2] - hud_ui_text_width(LABEL[b], px)), r[1] + 0.5f * (r[3] - 7.0f * px), px,
+                on ? 1.0f : 1.0f, on ? 0.42f : 1.0f, on ? 0.05f : 1.0f, 1);
+    if (on) hud_ui_rect(r[0] + 8, r[1] + r[3] - 5, r[2] - 16, 3, 1.0f, 0.42f, 0.05f, 0.95f);
   }
-  snprintf(line, sizeof line, "SIZE %d", *lay_k((menu_state *)m, g));
-  layout_text_mid(line, LAY_BUTTON[0][1] + 0.5f * (LAY_BUTTON[0][3] - 7.0f * 3), 3, 1, 1, 1);
+  snprintf(line, sizeof line, "SIZE %d", lay_kv(m, g));
+  layout_text_mid(line, LAY_BUTTON[LAY_SMALLER][1] + 0.5f * (LAY_BUTTON[LAY_SMALLER][3] - 7.0f * 3), 3, 1, 1, 1);
   hud_ui_end();
 }
 

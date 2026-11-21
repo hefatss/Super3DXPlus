@@ -3321,7 +3321,23 @@ void hud_layout_clamp(int group, int gyro, float k, float *dx, float *dy) {
   if (r.y < 0) *dy -= r.y;
 }
 
-void hud_draw_layout(float screen_w, float screen_h, int gyro, int sel) {
+/* two boxes of the editor sit on each other when they share more than a few px both ways (the
+ * default layout's boxes touch: the map and the time left, the dials and the rivals) */
+#define LAY_SHARE 4.0f
+static int boxes_share(rect a, rect b) {
+  float x = fminf(a.x + a.w, b.x + b.w) - fmaxf(a.x, b.x), y = fminf(a.y + a.h, b.y + b.h) - fmaxf(a.y, b.y);
+  return x > LAY_SHARE && y > LAY_SHARE;
+}
+
+int hud_layout_overlap(int group, int gyro, float k, float dx, float dy) {
+  if (group < 0 || group >= HUD_KEY_GROUPS) return 0;
+  rect a = place(group_rect(group, gyro), group, k, dx, dy);
+  for (int g = 0; g < HUD_KEY_GROUPS; ++g)
+    if (g != group && boxes_share(a, key(group_rect(g, gyro), g))) return 1;
+  return 0;
+}
+
+void hud_draw_layout(float screen_w, float screen_h, int gyro, int sel, int bad) {
   hud_state h;
   hud_init(&h, screen_w, screen_h);
   h.steer_mode = gyro; /* (the OPTION's steering: HUD_STEER_*) */
@@ -3365,24 +3381,27 @@ void hud_draw_layout(float screen_w, float screen_h, int gyro, int sel) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   }
-  /* each group's and console's box, the chosen one's orange */
-  for (int g = 0; g < HUD_KEY_GROUPS; ++g) {
-    rect r = key(group_rect(g, h.gyro), g);
-    r = (rect){ r.x - 6, r.y - 6, r.w + 12, r.h + 12 };
-    if (g == sel) color(1.0f, 0.42f, 0.05f, 0.95f);
-    else color(1, 1, 1, 0.35f);
-    frame_rect(r, g == sel ? 4 : 2);
-  }
-  if (STYLE == HUD_STYLE_TOUCH)
+  /* the chosen tab's boxes, the chosen one's orange (red: it sits on another one) */
+  int cat = sel >= HUD_KEY_GROUPS;
+  if (!cat) {
+    for (int g = 0; g < HUD_KEY_GROUPS; ++g) {
+      rect r = key(group_rect(g, h.gyro), g);
+      r = (rect){ r.x - 6, r.y - 6, r.w + 12, r.h + 12 };
+      if (g == sel) color(1.0f, bad ? 0.1f : 0.42f, bad ? 0.1f : 0.05f, 0.95f);
+      else color(1, 1, 1, 0.35f);
+      frame_rect(r, g == sel ? 4 : 2);
+    }
+  } else if (STYLE == HUD_STYLE_TOUCH) {
     for (int el = 0; el < HUD_ELEMENTS; ++el) {
       rect r = el_placed(el, UEL_K[el], UEL_DX[el], UEL_DY[el]);
       r = (rect){ r.x - 3, r.y - 3, r.w + 6, r.h + 6 };
-      if (HUD_KEY_GROUPS + el == sel) color(1.0f, 0.42f, 0.05f, 0.95f);
+      if (HUD_KEY_GROUPS + el == sel) color(1.0f, bad ? 0.1f : 0.42f, bad ? 0.1f : 0.05f, 0.95f);
       else color(0.5f, 0.85f, 1.0f, 0.45f);
       frame_rect(r, HUD_KEY_GROUPS + el == sel ? 4 : 2);
     }
+  }
   glDisable(GL_BLEND);
-  if (STYLE == HUD_STYLE_TOUCH) { /* (their names, small, on the corner of each box) */
+  if (cat && STYLE == HUD_STYLE_TOUCH) { /* (their names, small, on the corner of each box) */
     hud_ui_begin(screen_w, screen_h);
     for (int el = 0; el < HUD_ELEMENTS; ++el) {
       rect r = el_placed(el, UEL_K[el], UEL_DX[el], UEL_DY[el]);
@@ -3455,6 +3474,14 @@ void hud_el_clamp(int el, float k, float *dx, float *dy) {
   if (r.x < -EDGE) *dx += -EDGE - r.x;
   if (r.y + r.h > 768) *dy -= r.y + r.h - 768;
   if (r.y < 0) *dy -= r.y;
+}
+
+int hud_el_overlap(int el, float k, float dx, float dy) {
+  if (el < 0 || el >= HUD_ELEMENTS) return 0;
+  rect a = el_placed(el, k, dx, dy);
+  for (int e = 0; e < HUD_ELEMENTS; ++e)
+    if (e != el && boxes_share(a, el_placed(e, UEL_K[e], UEL_DX[e], UEL_DY[e]))) return 1;
+  return 0;
 }
 
 /* the shift gate's centre on the arcade's screen (cons_g_mission, 1024x768 px) */

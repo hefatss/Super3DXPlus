@@ -172,8 +172,12 @@ void hud_layout_set(int group, float k, float dx, float dy);
 int hud_layout_hit(int gyro, float x, float y);
 /* (dx, dy) brought back so the group, k times its size, stays on the screen */
 void hud_layout_clamp(int group, int gyro, float k, float *dx, float *dy);
-/* the editor's view: the race's keys as hud_layout_set has them, group sel (-1 none) outlined */
-void hud_draw_layout(float screen_w, float screen_h, int gyro, int sel);
+/* 1 if the group, k times its size at (dx, dy), sits on another group of keys (the editor keeps
+ * the keys of its BUTTON tab apart: the two boxes share more than a few px) */
+int hud_layout_overlap(int group, int gyro, float k, float dx, float dy);
+/* the editor's view: the keys (sel below HUD_KEY_GROUPS) or the consoles as hud_layout_set and
+ * hud_el_set have them, the chosen one outlined (bad: it sits on another of its tab, in red) */
+void hud_draw_layout(float screen_w, float screen_h, int gyro, int sel, int bad);
 
 /* The race's own consoles the player can move and size on the touch screen (the KEY LAYOUT, with the keys): the dials (speedometer and tachometer), the plate under them (the speed in
  * digits, the car's name), the gear shifter, the rank and the distance left (the times beside them), the time left, the course map, and the rivals' boxes of a versus. Each is scaled
@@ -187,6 +191,9 @@ const char *hud_el_name(int el);
 int hud_el_hit(float x, float y);
 /* (dx, dy) brought back so the console, k times its size, stays on the screen */
 void hud_el_clamp(int el, float k, float *dx, float *dy);
+/* 1 if the console, k times its size at (dx, dy), sits on another console (the editor keeps the
+ * gauges of its HUD tab apart) */
+int hud_el_overlap(int el, float k, float dx, float dy);
 
 /* The menus' left/right keys and back button, in the same style: which one is at (x, y)
  * (-1, +1, HUD_MENU_BACK, or 0), and drawing them (held = the one being pressed, or 0;
