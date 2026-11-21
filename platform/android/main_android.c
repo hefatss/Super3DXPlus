@@ -332,13 +332,6 @@ static void frame_lock_wait(void) {
     fprintf(stderr, "frame rate: %s\n", state == 1 ? "counting refreshes through the Choreographer" : "no Choreographer, the lock only asks the system");
   }
   if (state != 1) return;
-  { /* (the frame rate reached, in the log every 10 s) */
-    static double t0;
-    static int n;
-    double t = now_s();
-    if (t0 == 0 || t - t0 > 30.0) t0 = t, n = 0;
-    else if (++n && t - t0 >= 10.0) fprintf(stderr, "frame rate: %.1f frames a second drawn under the lock\n", n / (t - t0)), t0 = t, n = 0;
-  }
   if (!was_on) was_on = 1, period = 0; /* (measured again: the panel may have changed its rate for the lock) */
   if (period == 0) { /* the refresh period, from 30 of them (a quarter of a second at 120 Hz) */
     long first = next_vsync(), last = first;
