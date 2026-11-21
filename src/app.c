@@ -5145,6 +5145,23 @@ void app_frame(float dt) {
     hud_init(&G.hud, G.hud.screen_w, G.hud.screen_h); /* let go of the pedals and the wheel */
     menu_pause_open(&G.menu);
   }
+  { /* test: MT3DX_LEAVE_AFTER=n leaves a race for the menus after n seconds, as the pause menu's YES does (races on end, one after another with MT3DX_SCRIPT) */
+    static int after = -1;
+    static double t0;
+    if (after < 0) after = getenv("MT3DX_LEAVE_AFTER") ? atoi(getenv("MT3DX_LEAVE_AFTER")) : 0;
+    if (after > 0 && !movie && !G.paused) {
+      if (G.race_frames == 0) t0 = now_ms();
+      else if (now_ms() - t0 > after * 1000.0) {
+        fprintf(stderr, "test: leaving the race after %d s\n", after);
+        G.story_race = 0;
+        hud_init(&G.hud, G.hud.screen_w, G.hud.screen_h);
+        G.in_menu = 1;
+        if (G.perf) fflush(G.perf);
+        menu_frame(0, frame_start);
+        return;
+      }
+    }
+  }
   if (G.paused) {
     snd_quiet();
     int r = menu_pause_update(&G.menu, dt);
