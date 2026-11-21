@@ -4992,6 +4992,9 @@ static void pose_blend(car_pose *out, const car_pose *a, const car_pose *b, floa
 static car_pose pose_prev, pose_real; /* the state before the last step; the real one while the blended one is drawn */
 static int pose_prev_ok, pose_swapped;
 
+static float display_hz; /* the screen's refresh as the platform knows it (0: not told, the frames' own rate is taken) */
+void app_display_hz(float hz) { display_hz = hz; }
+
 /* whether this race is drawn smooth: asked for (MT3DX_INTERP=1 or 0 to force), else on a display that is not 60 Hz (a 120 Hz one, a 90 Hz one) and in a versus
  * (where the machines' clocks are held together and the corrections must not show) */
 static int want_smooth(void) {
@@ -4999,7 +5002,7 @@ static int want_smooth(void) {
   if (env == -2) env = getenv("MT3DX_INTERP") ? atoi(getenv("MT3DX_INTERP")) : -1;
   if (env >= 0) return env;
   if (!G.menu.smooth_on) return 0; /* (GAME OPTIONS > GRAPHICS > SMOOTH MOTION off) */
-  float hz = disp_dt > 0 ? 1.0f / disp_dt : 60.0f;
+  float hz = display_hz > 0 ? display_hz : disp_dt > 0 ? 1.0f / disp_dt : 60.0f; /* (the PC player shows the menus at 60 on a 120 Hz screen: the screen's own rate counts) */
   return fabsf(hz - 60.0f) > 3.0f || G.vs_race;
 }
 
