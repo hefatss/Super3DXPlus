@@ -4941,6 +4941,32 @@ static void mat_blend(float *out, const float *a, const float *b, float t) {
   for (int i = 0; i < 16; ++i) out[i] = a[i] + (b[i] - a[i]) * t;
 }
 
+/* a view matrix (world to camera: the rotation R and t = -R * eye) between two steps. The translation of a view is large (the eye's place turned by R: tens of thousands of
+ * units from the origin) and changes a great deal as the car turns even a little, so it cannot be blended as it is nor tested for a jump: the rotation and the eye are. */
+static void view_blend(float *out, const float *a, const float *b, float t) {
+  float ea[3], eb[3], rot = 0.0f;
+  for (int j = 0; j < 3; ++j) {
+    ea[j] = -(a[4 * j] * a[12] + a[4 * j + 1] * a[13] + a[4 * j + 2] * a[14]);
+    eb[j] = -(b[4 * j] * b[12] + b[4 * j + 1] * b[13] + b[4 * j + 2] * b[14]);
+  }
+  for (int c = 0; c < 3; ++c)
+    for (int r = 0; r < 3; ++r) {
+      float d = fabsf(b[4 * c + r] - a[4 * c + r]);
+      if (d > rot) rot = d;
+    }
+  float dx = eb[0] - ea[0], dy = eb[1] - ea[1], dz = eb[2] - ea[2];
+  if (dx * dx + dy * dy + dz * dz > 6400.0f || rot > 0.7f) {
+    memcpy(out, b, 16 * sizeof *out);
+    return;
+  }
+  memcpy(out, b, 16 * sizeof *out);
+  float e[3];
+  for (int j = 0; j < 3; ++j) e[j] = ea[j] + (eb[j] - ea[j]) * t;
+  for (int c = 0; c < 3; ++c)
+    for (int r = 0; r < 3; ++r) out[4 * c + r] = a[4 * c + r] + (b[4 * c + r] - a[4 * c + r]) * t;
+  for (int i = 0; i < 3; ++i) out[12 + i] = -(out[i] * e[0] + out[4 + i] * e[1] + out[8 + i] * e[2]);
+}
+
 static void vec_blend(float *out, const float *a, const float *b, float t) {
   float dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
   if (dx * dx + dy * dy + dz * dz > 6400.0f) memcpy(out, b, 3 * sizeof *out);
@@ -4950,7 +4976,7 @@ static void vec_blend(float *out, const float *a, const float *b, float t) {
 /* the pose t of the way from a to b (the same shapes) */
 static void pose_blend(car_pose *out, const car_pose *a, const car_pose *b, float t) {
   *out = *b;
-  mat_blend(out->body, a->body, b->body, t), mat_blend(out->cam_view, a->cam_view, b->cam_view, t), mat_blend(out->mirror_view, a->mirror_view, b->mirror_view, t);
+  mat_blend(out->body, a->body, b->body, t), view_blend(out->cam_view, a->cam_view, b->cam_view, t), view_blend(out->mirror_view, a->mirror_view, b->mirror_view, t);
   vec_blend(out->pos, a->pos, b->pos, t), vec_blend(out->cam_pos, a->cam_pos, b->cam_pos, t);
   for (int i = 0; i < b->n_traffic && i < a->n_traffic; ++i)
     if (a->traffic[i].model == b->traffic[i].model) mat_blend(out->traffic[i].body, a->traffic[i].body, b->traffic[i].body, t);
@@ -5671,8 +5697,12 @@ void app_frame(float dt) {
   { /* test: MT3DX_INTERP_LOG=n logs n frames' timing and the drawn car's place, from the race's frame 120 (how evenly it moves) */
     static int lg = -1;
     if (lg < 0) lg = getenv("MT3DX_INTERP_LOG") ? atoi(getenv("MT3DX_INTERP_LOG")) : 0;
-    if (lg > 0 && G.race_frames > 120 && G.race_frames <= 120 + lg)
-      fprintf(stderr, "interp: dt %.2f ms steps %d alpha %.3f smooth %d car %.3f %.3f cam %.3f %.3f\n", (double)dt * 1e3, steps, (double)G.interp_alpha, G.interp, (double)c->pos[0], (double)c->pos[2], (double)c->cam_pos[0], (double)c->cam_pos[2]);
+    if (lg > 0 && G.race_frames > 120 && G.race_frames <= 120 + lg) {
+      float eye[3]; /* (the eye the drawn view matrix really has, and how far it is from the drawn car: it must not change between frames) */
+      for (int j = 0; j < 3; ++j) eye[j] = -(c->cam_view[4 * j] * c->cam_view[12] + c->cam_view[4 * j + 1] * c->cam_view[13] + c->cam_view[4 * j + 2] * c->cam_view[14]);
+      float dx = eye[0] - c->body[12], dy = eye[1] - c->body[13], dz = eye[2] - c->body[14];
+      fprintf(stderr, "interp: dt %.2f ms steps %d alpha %.3f smooth %d car %.3f %.3f cam %.3f %.3f eyedist %.3f\n", (double)dt * 1e3, steps, (double)G.interp_alpha, G.interp, (double)c->pos[0], (double)c->pos[2], (double)c->cam_pos[0], (double)c->cam_pos[2], (double)sqrtf(dx * dx + dy * dy + dz * dz));
+    }
   }
   if (pose_swapped) pose_set(&G.car, &pose_real), pose_swapped = 0, spark_blend(NULL, 1.0f); /* (the real state again) */
   if (G.paused) {
