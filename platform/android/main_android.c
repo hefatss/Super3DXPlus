@@ -11,6 +11,7 @@
 #include <EGL/eglext.h>
 #include <aaudio/AAudio.h>
 #include <android/log.h>
+#include <android/looper.h>
 #include <android/native_window_jni.h>
 #include <dlfcn.h>
 #include <jni.h>
@@ -284,6 +285,97 @@ static void frame_lock_apply(void) {
   fprintf(stderr, "frame rate: %s (setFrameRate %d)\n", want ? "asked the system for 60 Hz" : "left to the system", r);
 }
 
+/* The other half of the lock. A 120 Hz panel is a multiple of 60, so the system may well keep it at 120 whatever the window asks (the Thor does), and
+ * then the game would run a frame on every refresh with only every second one holding a step: uneven, and twice the drawing. With the lock on and a
+ * display of a whole multiple k of 60 Hz, one frame is drawn per k refreshes instead, each on its own step. The refreshes are counted from the
+ * Choreographer's callbacks (their time is the refresh's own, whatever the clock says): the loop waits for the k-th after the last frame began, so
+ * the frame it then draws is shown at the refresh after it, for k refreshes. Looked up at run time (Android 7 or later; none: no waiting). */
+typedef void (*vsync_cb)(long frame_ns, void *data);
+static void *(*choreo_get)(void);
+static void (*choreo_post)(void *, vsync_cb, void *);
+static void *choreo;
+static long vsync_ns;
+static int vsync_got;
+static void on_vsync(long ns, void *data) {
+  (void)data;
+  vsync_ns = ns, vsync_got = 1;
+}
+
+/* the next refresh's time, waiting for it (0: none came within 60 ms, the surface is gone or the app is in the background) */
+static long next_vsync(void) {
+  vsync_got = 0;
+  choreo_post(choreo, on_vsync, NULL);
+  for (int tries = 0; tries < 3 && !vsync_got; ++tries) ALooper_pollOnce(30, NULL, NULL, NULL);
+  return vsync_got ? vsync_ns : 0;
+}
+
+static void frame_lock_wait(void) {
+  static int state; /* 0 not tried, 1 working, -1 not available */
+  static double period; /* a refresh, ns (0: not measured since the lock went on or the surface changed) */
+  static int k;
+  static long begun; /* the refresh the last frame began at */
+  static int was_on, off;
+  int on = app_frame_lock();
+  if (!on || !A.window) {
+    period = 0, was_on = 0, k = 0;
+    return;
+  }
+  if (state == 0) {
+    void *lib = dlopen("libandroid.so", RTLD_NOW);
+    choreo_get = lib ? (void *(*)(void))dlsym(lib, "AChoreographer_getInstance") : NULL;
+    choreo_post = lib ? (void (*)(void *, vsync_cb, void *))dlsym(lib, "AChoreographer_postFrameCallback") : NULL;
+    if (choreo_get && choreo_post) {
+      ALooper_prepare(0);
+      choreo = choreo_get();
+    }
+    state = choreo ? 1 : -1;
+    fprintf(stderr, "frame rate: %s\n", state == 1 ? "counting refreshes through the Choreographer" : "no Choreographer, the lock only asks the system");
+  }
+  if (state != 1) return;
+  { /* (the frame rate reached, in the log every 10 s) */
+    static double t0;
+    static int n;
+    double t = now_s();
+    if (t0 == 0 || t - t0 > 30.0) t0 = t, n = 0;
+    else if (++n && t - t0 >= 10.0) fprintf(stderr, "frame rate: %.1f frames a second drawn under the lock\n", n / (t - t0)), t0 = t, n = 0;
+  }
+  if (!was_on) was_on = 1, period = 0; /* (measured again: the panel may have changed its rate for the lock) */
+  if (period == 0) { /* the refresh period, from 30 of them (a quarter of a second at 120 Hz) */
+    long first = next_vsync(), last = first;
+    int n = 0;
+    while (first && n < 30) {
+      long t = next_vsync();
+      if (!t) break;
+      last = t, ++n;
+    }
+    if (!first || n < 10) return;
+    period = (double)(last - first) / n;
+    double hz = 1e9 / period;
+    k = (int)(hz / 60.0 + 0.5);
+    if (k < 2 || fabs(hz / (60.0 * k) - 1.0) > 0.05) k = 1; /* (60 Hz, or one that is no multiple: 90 Hz has no even split) */
+    if (k > 1) fprintf(stderr, "frame rate: the display runs at %.1f Hz: the lock draws a frame every %d refreshes\n", hz, k);
+    else fprintf(stderr, "frame rate: the display runs at %.1f Hz, no whole multiple of 60 above 1: the lock waits for no refresh\n", hz);
+    begun = last;
+  }
+  if (k < 2) return;
+  /* wait until the refresh k after the one the last frame began at (late: at once) */
+  long want = begun + (long)(period * k), at = 0, prev = 0;
+  for (int tries = 0; tries < 12; ++tries) {
+    at = next_vsync();
+    /* (two refreshes in a row tell the display's rate as it is now: the system may have changed it since it was measured) */
+    if (at && prev) {
+      if (fabs((double)(at - prev) / period - 1.0) <= 0.25) off = 0;
+      else if (++off >= 4) { /* (a late callback now and then is only the phone being busy: four in a row is a new rate) */
+        period = 0, off = 0;
+        break;
+      }
+    }
+    prev = at;
+    if (!at || at >= want - (long)(period * 0.5)) break;
+  }
+  if (at) begun = at;
+}
+
 static int start_game(void) {
   fprintf(stderr, "start_game\n");
   app_save_dir(A.save_dir);
@@ -464,6 +556,7 @@ static void *game(void *arg) {
     eglSwapBuffers(A.dpy, A.surface);
 #endif
     app_frame_done((now_s() - p0) * 1000.0);
+    frame_lock_wait();
   }
   return NULL;
 }
