@@ -5729,11 +5729,12 @@ void app_frame(float dt) {
   }
   perf_frame(dt, steps, t1 - t0, now_ms() - t1, warmed, &G.rp);
   static int frame;
-  /* (glGetError waits for the GPU to catch up: 13 ms of a frame on a PC, every 150 frames; only when logging is asked for) */
-  if (getenv("MT3DX_LOG") && (frame < 10 || frame % 150 == 0))
-    fprintf(stderr, "frame %d dt %.3f draws %d tris %d car %.1f %.1f %.1f cam %.1f %.1f %.1f traffic %d kmh %.0f blur %.3f err 0x%x\n",
-            frame, dt, G.rp.draws, G.rp.triangles, c->pos[0], c->pos[1], c->pos[2], c->cam_pos[0], c->cam_pos[1],
-            c->cam_pos[2], c->n_traffic, car_kmh(c), c->cam_blur, glGetError());
+  /* (glGetError waits for the GPU to catch up: 13 ms of a frame on a PC, every 150 frames, in every test run that has MT3DX_LOG on, play.bat's too: asked for apart, MT3DX_GLERR) */
+  /* (this line, with a car_kmh call in it, took 13-17 ms of a frame on a PC every time it was printed: the first 10 frames and then each 150th, in a run with
+   * MT3DX_LOG, as play.bat's. It is for the first frames only now) */
+  if (getenv("MT3DX_LOG") && frame < 10)
+    fprintf(stderr, "frame %d dt %.3f draws %d tris %d car %.1f %.1f %.1f cam %.1f %.1f %.1f traffic %d blur %.3f\n", frame, dt, G.rp.draws, G.rp.triangles, c->pos[0], c->pos[1], c->pos[2],
+            c->cam_pos[0], c->cam_pos[1], c->cam_pos[2], c->n_traffic, c->cam_blur);
   frame++;
 }
 
